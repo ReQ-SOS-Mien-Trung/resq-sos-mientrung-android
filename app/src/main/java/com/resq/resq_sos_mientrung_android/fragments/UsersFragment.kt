@@ -100,6 +100,13 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
             ) {
                 permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
             }
+            if (ContextCompat.checkSelfPermission(
+                    requireContext(),
+                    Manifest.permission.BLUETOOTH_ADVERTISE
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
+            }
         } else {
             if (ContextCompat.checkSelfPermission(
                     requireContext(),
@@ -138,6 +145,9 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     
     private fun loadNearbyUsers() {
         if (bridgefyManager.isInitialized()) {
+            // Thử start SDK nếu chưa start (sau khi permissions được grant)
+            bridgefyManager.tryStartSDK()
+            
             val users = bridgefyManager.getNearbyUsers()
             nearbyUsers.clear()
             nearbyUsers.addAll(users)

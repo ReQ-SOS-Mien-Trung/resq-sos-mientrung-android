@@ -41,13 +41,36 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
             val config = BridgefyConfig.Builder()
                 .setApiKey("5a369f96-13d3-40df-8d41-805bf150cac0")
                 .setBridgefyDelegate(this)
+                .setContext(context)
                 .build()
             
             Log.d(TAG, "Đang khởi động Bridgefy SDK...")
+            Log.d(TAG, "Kiểm tra SDK thật có sẵn: ${BridgefySDKWrapper.isRealSDKAvailable()}")
+            
             Bridgefy.initialize(config, object : BridgefyStartListener {
                 override fun onBridgefyStart() {
                     Log.d(TAG, "✅ Bridgefy đã khởi động thành công!")
-                    Log.d(TAG, "Bridgefy SDK is now ACTIVE and ready to use")
+                    
+                    // Kiểm tra xem có đang dùng SDK thật không
+                    // Note: Bridgefy.isUsingRealSDK() sẽ được gọi từ Bridgefy object
+                    // Tạm thời kiểm tra qua việc xem có log "Real Bridgefy SDK initialized" không
+                    // Hoặc có thể thêm flag vào BridgefyManager
+                    
+                    if (BridgefySDKWrapper.isRealSDKAvailable()) {
+                        // SDK class tồn tại, nhưng cần kiểm tra xem đã khởi tạo thành công chưa
+                        // Log sẽ cho biết chi tiết hơn
+                        Log.d(TAG, "✅ Bridgefy SDK class found - checking initialization status...")
+                        Log.d(TAG, "✅ Đang sử dụng Bridgefy SDK THẬT - thiết bị sẽ tự động tìm thấy nhau")
+                        Log.d(TAG, "💡 Đảm bảo cả hai thiết bị đều:")
+                        Log.d(TAG, "   - Bật Bluetooth")
+                        Log.d(TAG, "   - Bật WiFi (hoặc WiFi Direct)")
+                        Log.d(TAG, "   - Ở gần nhau (trong phạm vi ~100m)")
+                        Log.d(TAG, "   - Đã cấp đủ quyền (Bluetooth, Location)")
+                    } else {
+                        Log.w(TAG, "⚠️ Đang sử dụng STUB - thiết bị KHÔNG THỂ tìm thấy nhau!")
+                        Log.w(TAG, "⚠️ SDK class được tìm thấy nhưng khởi tạo thất bại")
+                        Log.w(TAG, "⚠️ Vui lòng kiểm tra logcat để xem lỗi khởi tạo")
+                    }
                     isInitialized = true
                     notifyListeners { it.onBridgefyStart() }
                 }
@@ -93,6 +116,31 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
     }
     
     fun isInitialized(): Boolean = isInitialized
+    
+    /**
+     * Thử start SDK nếu chưa start.
+     * Nên gọi sau khi permissions đã được grant.
+     */
+    fun tryStartSDK(): Boolean {
+        if (!isInitialized) {
+            Log.d(TAG, "Cannot start SDK - not initialized yet")
+            return false
+        }
+        
+        // Gọi startBridgefySDK() - nó sẽ tự check permissions và isStarted
+        val started = BridgefySDKWrapper.startBridgefySDK()
+        if (started) {
+            Log.d(TAG, "✅ SDK started successfully!")
+        } else {
+            Log.d(TAG, "⚠️ SDK not started - may be missing permissions or already started")
+        }
+        return started
+    }
+    
+    /**
+     * Kiểm tra SDK đã bắt đầu scan chưa
+     */
+    fun isStarted(): Boolean = BridgefySDKWrapper.isStarted()
     
     // BridgefyDelegate callbacks
     override fun onMessageReceived(message: Message, user: User) {

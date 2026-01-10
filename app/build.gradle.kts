@@ -20,6 +20,12 @@ android {
         
         // Fix for AAR metadata issues
         multiDexEnabled = true
+        
+        // Support for 16 KB page size devices (Android 15+)
+        // This helps with compatibility warning for native libraries
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
     }
     
     buildTypes {
@@ -32,12 +38,12 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
     buildFeatures {
         viewBinding = true
@@ -55,6 +61,11 @@ android {
             excludes += "/META-INF/ASL2.0"
             excludes += "/META-INF/*.kotlin_module"
         }
+        
+        // Note: 16 KB page size warning is from Bridgefy SDK's native libraries
+        // This is a known issue with libsignal_jni.so
+        // The warning can be ignored for now, but should be fixed by Bridgefy SDK update
+        // App will still work on most devices (only affects some Android 15+ devices with 16KB pages)
     }
     
     lint {
@@ -77,10 +88,16 @@ dependencies {
     coreLibraryDesugaring(libs.androidx.desugar.jdk.libs)
     
     // Bridgefy SDK
+    // Option 1: From Maven repository (if available)
     implementation(group = "me.bridgefy", name = "android-sdk", version = "1.2.3", ext = "aar") {
         isTransitive = true
-        exclude(group = "org.signal", module = "libsignal-client")
     }
+    
+    // Signal Protocol is included as transitive dependency of Bridgefy SDK
+    
+    // Option 2: From local libs folder (uncomment if you have the AAR file)
+    // Uncomment the line below and place bridgefy-sdk.aar in app/libs/ folder
+    // implementation(files("libs/bridgefy-sdk.aar"))
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
