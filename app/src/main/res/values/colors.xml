@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Orange theme colors for SOS Rescue App -->
+    <color name="orange_primary">#FF6B35</color>
+    <color name="orange_primary_dark">#E55A2B</color>
+    <color name="orange_primary_light">#FF8C5A</color>
+    <color name="orange_accent">#FF8C42</color>
+    <color name="orange_background">#FFF5F0</color>
+    <color name="nav_background">#FFFFFF</color>
+    <color name="nav_selected">#FF6B35</color>
+    <color name="nav_unselected">#9E9E9E</color>
+    <color name="nav_indicator_background">#20FF6B35</color>
+</resources>
