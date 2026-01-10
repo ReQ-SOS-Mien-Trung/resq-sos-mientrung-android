@@ -1,0 +1,146 @@
+package com.resq.resq_sos_mientrung_android.bridgefy
+
+import android.content.Context
+import android.util.Log
+import org.json.JSONObject
+
+class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
+    
+    companion object {
+        private const val TAG = "BridgefyManager"
+        private var instance: BridgefyManager? = null
+        
+        fun getInstance(context: Context): BridgefyManager {
+            if (instance == null) {
+                instance = BridgefyManager(context.applicationContext)
+            }
+            return instance!!
+        }
+    }
+    
+    private var isInitialized = false
+    private var listeners: MutableList<BridgefyListener> = mutableListOf()
+    
+    fun addListener(listener: BridgefyListener) {
+        if (!listeners.contains(listener)) {
+            listeners.add(listener)
+        }
+    }
+    
+    fun removeListener(listener: BridgefyListener) {
+        listeners.remove(listener)
+    }
+    
+    fun initialize(context: Context) {
+        if (isInitialized) {
+            Log.d(TAG, "Bridgefy already initialized")
+            return
+        }
+        
+        try {
+            val config = BridgefyConfig.Builder()
+                .setApiKey("5a369f96-13d3-40df-8d41-805bf150cac0")
+                .setBridgefyDelegate(this)
+                .build()
+            
+            Log.d(TAG, "Đang khởi động Bridgefy SDK...")
+            Bridgefy.initialize(config, object : BridgefyStartListener {
+                override fun onBridgefyStart() {
+                    Log.d(TAG, "✅ Bridgefy đã khởi động thành công!")
+                    Log.d(TAG, "Bridgefy SDK is now ACTIVE and ready to use")
+                    isInitialized = true
+                    notifyListeners { it.onBridgefyStart() }
+                }
+                
+                override fun onBridgefyStartError(error: String) {
+                    Log.e(TAG, "❌ Bridgefy start error: $error")
+                    Log.e(TAG, "Bridgefy SDK failed to initialize")
+                    notifyListeners { it.onBridgefyStartError(error) }
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing Bridgefy", e)
+        }
+    }
+    
+    fun sendMessage(userId: String, content: String): String? {
+        if (!isInitialized) {
+            Log.e(TAG, "Bridgefy not initialized")
+            return null
+        }
+        
+        return try {
+            val messageData = JSONObject().apply {
+                put("content", content)
+                put("timestamp", System.currentTimeMillis())
+            }
+            
+            val messageId = Bridgefy.sendMessage(userId, messageData.toString())
+            Log.d(TAG, "Message sent with ID: $messageId")
+            messageId
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending message", e)
+            null
+        }
+    }
+    
+    fun getNearbyUsers(): List<User> {
+        return if (isInitialized) {
+            Bridgefy.getNearbyUsers()
+        } else {
+            emptyList()
+        }
+    }
+    
+    fun isInitialized(): Boolean = isInitialized
+    
+    // BridgefyDelegate callbacks
+    override fun onMessageReceived(message: Message, user: User) {
+        Log.d(TAG, "📨 Message received from ${user.userId}: ${message.content}")
+        Log.d(TAG, "Bridgefy đang hoạt động - Nhận tin nhắn thành công")
+        listeners.forEach { it.onMessageReceived(message, user) }
+    }
+    
+    override fun onMessageSent(messageId: String) {
+        Log.d(TAG, "✅ Message sent successfully: $messageId")
+        Log.d(TAG, "Bridgefy đang hoạt động - Gửi tin nhắn thành công")
+        listeners.forEach { it.onMessageSent(messageId) }
+    }
+    
+    override fun onMessageFailed(messageId: String, error: String) {
+        Log.e(TAG, "❌ Message failed: $messageId, error: $error")
+        Log.e(TAG, "Bridgefy đang hoạt động nhưng gửi tin nhắn thất bại")
+        listeners.forEach { it.onMessageFailed(messageId, error) }
+    }
+    
+    override fun onUserFound(user: User) {
+        Log.d(TAG, "🔵 User found: ${user.userId}")
+        Log.d(TAG, "Bridgefy đang hoạt động - Tìm thấy người dùng mới (THẬT)")
+        // Add user to Bridgefy's internal list for getNearbyUsers()
+        Bridgefy.addUser(user)
+        listeners.forEach { it.onUserFound(user) }
+    }
+    
+    override fun onUserLost(user: User) {
+        Log.d(TAG, "🔴 User lost: ${user.userId}")
+        Log.d(TAG, "Bridgefy đang hoạt động - Mất kết nối với người dùng")
+        // Remove user from Bridgefy's internal list
+        Bridgefy.removeUser(user)
+        listeners.forEach { it.onUserLost(user) }
+    }
+    
+    private fun notifyListeners(action: (BridgefyListener) -> Unit) {
+        listeners.forEach(action)
+    }
+    
+    // Extension for BridgefyListener to handle start events
+    interface BridgefyListener {
+        fun onBridgefyStart() {}
+        fun onBridgefyStartError(error: String) {}
+        fun onUserFound(user: User)
+        fun onUserLost(user: User)
+        fun onMessageReceived(message: Message, user: User)
+        fun onMessageSent(messageId: String)
+        fun onMessageFailed(messageId: String, error: String)
+    }
+}

@@ -18,6 +18,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import com.resq.resq_sos_mientrung_android.databinding.ActivityMainBinding
+import com.resq.resq_sos_mientrung_android.bridgefy.BridgefyManager
 import com.resq.resq_sos_mientrung_android.fragments.ChatFragment
 import com.resq.resq_sos_mientrung_android.fragments.MapFragment
 import com.resq.resq_sos_mientrung_android.fragments.RescuersFragment
@@ -50,6 +51,9 @@ class MainActivity : AppCompatActivity() {
         // Inflate navigation bar
         navBarView = layoutInflater.inflate(R.layout.bottom_navigation_bar, binding.navBarContainer, true)
         selectedTabIndicator = navBarView?.findViewById(R.id.selectedTabIndicator)
+        
+        // Initialize Bridgefy SDK
+        BridgefyManager.getInstance(this).initialize(this)
         
         // Setup navigation tabs after layout is measured
         navBarView?.post {
