@@ -77,6 +77,14 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     
     private fun setupRecyclerView() {
         binding.recyclerViewUsers.layoutManager = LinearLayoutManager(requireContext())
+        // Pass click callback to adapter
+        usersAdapter.setOnUserClickListener { user ->
+            // Navigate to chat with selected user
+            val activity = requireActivity()
+            if (activity is com.resq.resq_sos_mientrung_android.MainActivity) {
+                activity.navigateToChatWithUser(user.userId, user.getDisplayNameOrShortId())
+            }
+        }
         binding.recyclerViewUsers.adapter = usersAdapter
         
         updateUsersList()
@@ -199,52 +207,64 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     // BridgefyListener callbacks
     override fun onBridgefyStart() {
         android.util.Log.d("UsersFragment", "Bridgefy đã khởi động thành công!")
-        updateBridgefyStatus()
-        loadNearbyUsers()
-        Snackbar.make(
-            binding.root,
-            "Bridgefy đã sẵn sàng! Đang tìm người dùng gần đây...",
-            Snackbar.LENGTH_SHORT
-        ).show()
-    }
-    
-    override fun onBridgefyStartError(error: String) {
-        android.util.Log.e("UsersFragment", "Lỗi khởi động Bridgefy: $error")
-        updateBridgefyStatus()
-        binding.statusIndicator.setBackgroundResource(R.drawable.bridgefy_status_indicator)
-        binding.textBridgefyStatus.text = "Lỗi: $error"
-        binding.textBridgefyStatus.setTextColor(requireContext().getColor(android.R.color.holo_red_dark))
-        Snackbar.make(
-            binding.root,
-            "Lỗi khởi động Bridgefy: $error",
-            Snackbar.LENGTH_LONG
-        ).show()
-    }
-    
-    override fun onUserFound(user: User) {
-        android.util.Log.d("UsersFragment", "Tìm thấy người dùng: ${user.userId}")
-        if (!nearbyUsers.contains(user)) {
-            nearbyUsers.add(user)
-            updateUsersList()
-            val count = nearbyUsers.size
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            updateBridgefyStatus()
+            loadNearbyUsers()
             Snackbar.make(
                 binding.root,
-                "Tìm thấy người dùng mới! (Tổng: $count người)",
+                "Bridgefy đã sẵn sàng! Đang tìm người dùng gần đây...",
                 Snackbar.LENGTH_SHORT
             ).show()
         }
     }
     
+    override fun onBridgefyStartError(error: String) {
+        android.util.Log.e("UsersFragment", "Lỗi khởi động Bridgefy: $error")
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            updateBridgefyStatus()
+            binding.statusIndicator.setBackgroundResource(R.drawable.bridgefy_status_indicator)
+            binding.textBridgefyStatus.text = "Lỗi: $error"
+            binding.textBridgefyStatus.setTextColor(requireContext().getColor(android.R.color.holo_red_dark))
+            Snackbar.make(
+                binding.root,
+                "Lỗi khởi động Bridgefy: $error",
+                Snackbar.LENGTH_LONG
+            ).show()
+        }
+    }
+    
+    override fun onUserFound(user: User) {
+        android.util.Log.d("UsersFragment", "Tìm thấy người dùng: ${user.userId}")
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            if (!nearbyUsers.contains(user)) {
+                nearbyUsers.add(user)
+                updateUsersList()
+                val count = nearbyUsers.size
+                Snackbar.make(
+                    binding.root,
+                    "Tìm thấy người dùng mới! (Tổng: $count người)",
+                    Snackbar.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+    
     override fun onUserLost(user: User) {
         android.util.Log.d("UsersFragment", "Mất kết nối với người dùng: ${user.userId}")
-        nearbyUsers.remove(user)
-        updateUsersList()
-        val count = nearbyUsers.size
-        Snackbar.make(
-            binding.root,
-            "Mất kết nối với người dùng (Còn lại: $count người)",
-            Snackbar.LENGTH_SHORT
-        ).show()
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            nearbyUsers.remove(user)
+            updateUsersList()
+            val count = nearbyUsers.size
+            Snackbar.make(
+                binding.root,
+                "Mất kết nối với người dùng (Còn lại: $count người)",
+                Snackbar.LENGTH_SHORT
+            ).show()
+        }
     }
     
     override fun onMessageReceived(message: Message, user: User) {
@@ -268,6 +288,11 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     // Adapter for users list
     private class UsersAdapter : RecyclerView.Adapter<UsersAdapter.UserViewHolder>() {
         private val users = mutableListOf<User>()
+        private var onUserClickListener: ((User) -> Unit)? = null
+        
+        fun setOnUserClickListener(listener: (User) -> Unit) {
+            onUserClickListener = listener
+        }
         
         fun submitList(newUsers: List<User>) {
             users.clear()
@@ -278,7 +303,7 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UserViewHolder {
             val view = LayoutInflater.from(parent.context)
                 .inflate(R.layout.item_user, parent, false)
-            return UserViewHolder(view)
+            return UserViewHolder(view, onUserClickListener)
         }
         
         override fun onBindViewHolder(holder: UserViewHolder, position: Int) {
@@ -288,16 +313,28 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
         
         override fun getItemCount() = users.size
         
-        class UserViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        class UserViewHolder(
+            itemView: View,
+            private val onUserClickListener: ((User) -> Unit)?
+        ) : RecyclerView.ViewHolder(itemView) {
             private val textUserName = itemView.findViewById<TextView>(R.id.textUserName)
             private val textUserStatus = itemView.findViewById<TextView>(R.id.textUserStatus)
             private val textUserInitial = itemView.findViewById<TextView>(R.id.textUserInitial)
             
             fun bind(user: User) {
-                val shortId = user.userId.take(8)
-                textUserName?.text = "Người dùng $shortId"
+                // Hiển thị tên thân thiện thay vì userId
+                val displayName = user.getDisplayNameOrShortId()
+                textUserName?.text = displayName
                 textUserStatus?.text = "Đang online"
-                textUserInitial?.text = shortId.firstOrNull()?.uppercase() ?: "U"
+                
+                // Lấy chữ cái đầu từ tên hiển thị
+                val initial = displayName.firstOrNull()?.uppercase() ?: "U"
+                textUserInitial?.text = initial
+                
+                // Set click listener on the entire item
+                itemView.setOnClickListener {
+                    onUserClickListener?.invoke(user)
+                }
             }
         }
     }

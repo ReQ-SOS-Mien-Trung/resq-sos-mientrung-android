@@ -5,9 +5,7 @@ plugins {
 
 android {
     namespace = "com.resq.resq_sos_mientrung_android"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.resq.resq_sos_mientrung_android"

@@ -68,6 +68,57 @@
                         android:fontFamily="sans-serif" />
                 </LinearLayout>
             </LinearLayout>
+            
+            <!-- Chat mode indicator (Broadcast or Private) -->
+            <LinearLayout
+                android:id="@+id/layoutChatMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/chat_mode_background"
+                android:padding="10dp">
+                
+                <ImageView
+                    android:id="@+id/iconChatMode"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_broadcast"
+                    android:tint="@color/orange_primary" />
+                
+                <TextView
+                    android:id="@+id/textChatMode"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:text="Broadcast - Gửi tới tất cả"
+                    android:textSize="14sp"
+                    android:textColor="@color/orange_primary"
+                    android:fontFamily="sans-serif-medium" />
+                
+                <TextView
+                    android:id="@+id/textUserCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0 người"
+                    android:textSize="12sp"
+                    android:textColor="@color/nav_unselected"
+                    android:layout_marginEnd="8dp" />
+                
+                <ImageView
+                    android:id="@+id/buttonClearPrivateChat"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_close"
+                    android:tint="@color/nav_unselected"
+                    android:visibility="gone"
+                    android:padding="4dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless" />
+            </LinearLayout>
         </LinearLayout>
     </com.google.android.material.appbar.AppBarLayout>
 

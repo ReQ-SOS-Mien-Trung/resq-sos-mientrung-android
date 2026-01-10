@@ -159,6 +159,21 @@ class MainActivity : AppCompatActivity() {
             updateNavigationBar(position)
         }
     }
+    
+    /**
+     * Navigate to Chat tab and set the selected user ID
+     * This method can be called from fragments to start a chat with a specific user
+     */
+    fun navigateToChatWithUser(userId: String, displayName: String = "") {
+        // Load Chat fragment (position 2)
+        loadFragment(2)
+        
+        // Set the selected user in ChatFragment after a short delay to ensure fragment is ready
+        navBarView?.postDelayed({
+            val chatFragment = fragments[2] as? ChatFragment
+            chatFragment?.setPrivateChatMode(userId, displayName)
+        }, 100)
+    }
 
     private fun updateNavigationBar(selectedPosition: Int) {
         try {

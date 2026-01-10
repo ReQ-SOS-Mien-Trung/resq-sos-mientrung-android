@@ -1625,21 +1625,71 @@ object BridgefySDKWrapper {
             arrayOf(delegateClass)
         ) { _, method, args ->
             when (method.name) {
-                "onMessageReceived" -> {
+                "onMessageReceived", "onReceive" -> {
                     // SDK thật sẽ truyền message và user
+                    Log.d(TAG, "📨 ${method.name} callback called from SDK!")
+                    Log.d(TAG, "📨 Args count: ${args?.size ?: 0}")
                     val message = args?.get(0)
                     val user = args?.get(1)
-                    val messageId = extractMessageId(message)
-                    val content = extractMessageContent(message)
-                    delegate.onMessageReceived(Message(messageId, content), User(extractUserId(user)))
+                    Log.d(TAG, "📨 Message object: ${message?.javaClass?.name}")
+                    Log.d(TAG, "📨 User object: ${user?.javaClass?.name}")
+                    
+                    // Nếu chỉ có 1 arg, có thể là message object chứa cả user info
+                    val handled = if (args?.size == 1 && user == null) {
+                        Log.d(TAG, "📨 Only 1 arg, trying to extract user from message")
+                        // Thử extract user từ message object
+                        try {
+                            val userMethod = message?.javaClass?.getMethod("getUser")
+                            val extractedUser = userMethod?.invoke(message)
+                            if (extractedUser != null) {
+                                val userId = extractUserId(extractedUser)
+                                val messageId = extractMessageId(message)
+                                val content = extractMessageContent(message)
+                                Log.d(TAG, "📨 Extracted from single arg - messageId: $messageId, content: $content, userId: $userId")
+                                delegate.onMessageReceived(Message(messageId, content), User(userId))
+                                true
+                            } else {
+                                false
+                            }
+                        } catch (e: Exception) {
+                            Log.d(TAG, "📨 Cannot extract user from message: ${e.message}")
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                    
+                    if (!handled) {
+                        val messageId = extractMessageId(message)
+                        val content = extractMessageContent(message)
+                        val userId = extractUserId(user)
+                        Log.d(TAG, "📨 Extracted messageId: $messageId")
+                        Log.d(TAG, "📨 Extracted content: $content")
+                        Log.d(TAG, "📨 Extracted userId: $userId")
+                        delegate.onMessageReceived(Message(messageId, content), User(userId))
+                    }
                 }
-                "onMessageSent" -> {
-                    val messageId = args?.get(0) as? String ?: ""
+                "onMessageSent", "onSend" -> {
+                    Log.d(TAG, "✅ ${method.name} callback called from SDK!")
+                    Log.d(TAG, "✅ Args count: ${args?.size ?: 0}")
+                    
+                    // onSend có thể nhận message object hoặc messageId string
+                    val messageId = when {
+                        args?.isEmpty() != false -> ""
+                        args?.get(0) is String -> args[0] as String
+                        else -> {
+                            // Thử extract từ message object
+                            val message = args?.get(0)
+                            extractMessageId(message)
+                        }
+                    }
+                    Log.d(TAG, "✅ Message sent with ID: $messageId")
                     delegate.onMessageSent(messageId)
                 }
-                "onMessageFailed" -> {
-                    val messageId = args?.get(0) as? String ?: ""
+                "onMessageFailed", "onSendFailed" -> {
+                    val messageId = args?.get(0) as? String ?: extractMessageId(args?.get(0))
                     val error = args?.get(1) as? String ?: "Unknown error"
+                    Log.e(TAG, "❌ Message failed: $messageId, error: $error")
                     delegate.onMessageFailed(messageId, error)
                 }
                 "onUserFound" -> {
@@ -1652,8 +1702,39 @@ object BridgefySDKWrapper {
                     val userId = extractUserId(user)
                     delegate.onUserLost(User(userId))
                 }
+                "onProgressOfSend" -> {
+                    // Callback để theo dõi tiến trình gửi tin nhắn
+                    // Không cần xử lý, chỉ log để debug
+                    Log.d(TAG, "📊 onProgressOfSend called - Args: ${args?.size ?: 0}")
+                    if (args != null && args.isNotEmpty()) {
+                        Log.d(TAG, "📊 Progress args: ${args.mapIndexed { i, arg -> "arg$i=${arg?.javaClass?.simpleName}" }.joinToString()}")
+                    }
+                    null
+                }
                 else -> {
-                    Log.d(TAG, "Unhandled delegate method: ${method.name}")
+                    // Log tất cả các method chưa được xử lý để debug
+                    Log.d(TAG, "⚠️ Unhandled delegate method: ${method.name} (args: ${args?.size ?: 0})")
+                    if (args != null && args.isNotEmpty()) {
+                        Log.d(TAG, "⚠️ Method ${method.name} args types: ${args.mapIndexed { i, arg -> "arg$i=${arg?.javaClass?.name}" }.joinToString()}")
+                        // Nếu có vẻ như là callback nhận tin nhắn, thử xử lý
+                        if (method.name.contains("Receive", ignoreCase = true) || 
+                            method.name.contains("Message", ignoreCase = true)) {
+                            Log.d(TAG, "⚠️ This might be a message receive callback! Trying to handle...")
+                            try {
+                                val message = args?.get(0)
+                                val user = args?.getOrNull(1)
+                                val messageId = extractMessageId(message)
+                                val content = extractMessageContent(message)
+                                val userId = extractUserId(user)
+                                Log.d(TAG, "⚠️ Extracted - messageId: $messageId, content: $content, userId: $userId")
+                                if (messageId.isNotEmpty() || content.isNotEmpty()) {
+                                    delegate.onMessageReceived(Message(messageId, content), User(userId))
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error handling potential receive callback: ${e.message}")
+                            }
+                        }
+                    }
                     null
                 }
             }
@@ -1681,22 +1762,66 @@ object BridgefySDKWrapper {
                     val userId = extractUserId(sdkUser)
                     delegate.onUserLost(User(userId))
                 }
-                "onMessageReceived" -> {
+                "onMessageReceived", "onReceive" -> {
                     // SDK thật sẽ truyền Message và User
+                    Log.d(TAG, "📨 ${method.name} callback called from SDK (via listener)!")
+                    Log.d(TAG, "📨 Args count: ${args?.size ?: 0}")
                     val message = args?.get(0)
                     val user = args?.get(1)
-                    val messageId = extractMessageId(message)
-                    val content = extractMessageContent(message)
-                    delegate.onMessageReceived(Message(messageId, content), User(extractUserId(user)))
+                    Log.d(TAG, "📨 Message object: ${message?.javaClass?.name}")
+                    Log.d(TAG, "📨 User object: ${user?.javaClass?.name}")
+                    
+                    // Nếu chỉ có 1 arg, có thể là message object chứa cả user info
+                    val handled = if (args?.size == 1 && user == null) {
+                        Log.d(TAG, "📨 Only 1 arg, trying to extract user from message")
+                        try {
+                            val userMethod = message?.javaClass?.getMethod("getUser")
+                            val extractedUser = userMethod?.invoke(message)
+                            if (extractedUser != null) {
+                                val userId = extractUserId(extractedUser)
+                                val messageId = extractMessageId(message)
+                                val content = extractMessageContent(message)
+                                Log.d(TAG, "📨 Extracted from single arg - messageId: $messageId, content: $content, userId: $userId")
+                                delegate.onMessageReceived(Message(messageId, content), User(userId))
+                                true
+                            } else {
+                                false
+                            }
+                        } catch (e: Exception) {
+                            Log.d(TAG, "📨 Cannot extract user from message: ${e.message}")
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                    
+                    if (!handled) {
+                        val messageId = extractMessageId(message)
+                        val content = extractMessageContent(message)
+                        val userId = extractUserId(user)
+                        Log.d(TAG, "📨 Extracted messageId: $messageId")
+                        Log.d(TAG, "📨 Extracted content: $content")
+                        Log.d(TAG, "📨 Extracted userId: $userId")
+                        delegate.onMessageReceived(Message(messageId, content), User(userId))
+                    }
                 }
-                "onMessageSent" -> {
-                    val messageId = args?.get(0) as? String ?: ""
+                "onMessageSent", "onSend" -> {
+                    Log.d(TAG, "✅ ${method.name} callback called from SDK (via listener)!")
+                    val messageId = when {
+                        args?.isEmpty() != false -> ""
+                        args?.get(0) is String -> args[0] as String
+                        else -> extractMessageId(args?.get(0))
+                    }
                     delegate.onMessageSent(messageId)
                 }
-                "onMessageFailed" -> {
-                    val messageId = args?.get(0) as? String ?: ""
+                "onMessageFailed", "onSendFailed" -> {
+                    val messageId = args?.get(0) as? String ?: extractMessageId(args?.get(0))
                     val error = args?.get(1) as? String ?: "Unknown error"
                     delegate.onMessageFailed(messageId, error)
+                }
+                "onProgressOfSend" -> {
+                    Log.d(TAG, "📊 onProgressOfSend called (via listener)")
+                    null
                 }
                 "onBridgefyStart" -> {
                     // SDK đã khởi động thành công
@@ -1705,7 +1830,10 @@ object BridgefySDKWrapper {
                     val error = args?.get(0) as? String ?: "Unknown error"
                     // Error sẽ được xử lý ở initializeRealSDK
                 }
-                else -> null
+                else -> {
+                    Log.d(TAG, "Unhandled listener method: ${method.name} (args: ${args?.size ?: 0})")
+                    null
+                }
             }
         }
     }
@@ -1733,9 +1861,64 @@ object BridgefySDKWrapper {
     private fun extractMessageContent(message: Any?): String {
         if (message == null) return ""
         return try {
-            val contentMethod = message.javaClass.getMethod("getContent")
-            contentMethod.invoke(message) as? String ?: ""
+            // Thử nhiều cách để lấy content
+            val messageClass = message.javaClass
+            
+            // Cách 1: getContent() method
+            try {
+                val contentMethod = messageClass.getMethod("getContent")
+                val content = contentMethod.invoke(message)
+                if (content != null) {
+                    return when (content) {
+                        is String -> content
+                        is ByteArray -> String(content, Charsets.UTF_8)
+                        else -> content.toString()
+                    }
+                }
+            } catch (e: NoSuchMethodException) {
+                // Try next method
+            }
+            
+            // Cách 2: getData() method (có thể trả về byte array)
+            try {
+                val dataMethod = messageClass.getMethod("getData")
+                val data = dataMethod.invoke(message)
+                if (data != null) {
+                    return when (data) {
+                        is ByteArray -> String(data, Charsets.UTF_8)
+                        is String -> data
+                        else -> data.toString()
+                    }
+                }
+            } catch (e: NoSuchMethodException) {
+                // Try next method
+            }
+            
+            // Cách 3: getPayload() method
+            try {
+                val payloadMethod = messageClass.getMethod("getPayload")
+                val payload = payloadMethod.invoke(message)
+                if (payload != null) {
+                    return when (payload) {
+                        is ByteArray -> String(payload, Charsets.UTF_8)
+                        is String -> payload
+                        else -> payload.toString()
+                    }
+                }
+            } catch (e: NoSuchMethodException) {
+                // Try next method
+            }
+            
+            // Cách 4: Nếu message là byte array trực tiếp
+            if (message is ByteArray) {
+                return String(message, Charsets.UTF_8)
+            }
+            
+            // Cách 5: toString() as last resort
+            message.toString()
         } catch (e: Exception) {
+            Log.e(TAG, "Error extracting message content: ${e.message}")
+            e.printStackTrace()
             message.toString()
         }
     }
@@ -1775,34 +1958,78 @@ object BridgefySDKWrapper {
             // Chuyển content thành byte array
             val data = content.toByteArray(Charsets.UTF_8)
             
-            // Tìm TransmissionMode class và tạo broadcast mode
+            // Tìm TransmissionMode class và tạo P2P mode với UUID của user đích
+            // P2P mode cho phép gửi tin nhắn đến một user cụ thể
             val transmissionModeClass = Class.forName("me.bridgefy.commons.TransmissionMode")
-            val broadcastClass = try {
-                Class.forName("me.bridgefy.commons.TransmissionMode\$Broadcast")
-            } catch (e: ClassNotFoundException) {
-                Class.forName("me.bridgefy.commons.TransmissionMode\$P2P")
-            }
             
-            // Lấy INSTANCE của TransmissionMode subclass
-            var transmissionMode: Any? = null
-            try {
-                val instanceField = broadcastClass.getDeclaredField("INSTANCE")
-                instanceField.isAccessible = true
-                transmissionMode = instanceField.get(null)
-            } catch (e: NoSuchFieldException) {
-                // Thử tạo instance
+            // Thử tìm P2P class với các package names khác nhau
+            val p2pClassNames = listOf(
+                "me.bridgefy.commons.TransmissionMode\$P2P",
+                "me.bridgefy.TransmissionMode\$P2P",
+                "me.bridgefy.sdk.TransmissionMode\$P2P"
+            )
+            
+            var p2pClass: Class<*>? = null
+            for (className in p2pClassNames) {
                 try {
-                    val uuidClass = Class.forName("java.util.UUID")
-                    val constructor = broadcastClass.getDeclaredConstructor(uuidClass)
-                    constructor.isAccessible = true
-                    transmissionMode = constructor.newInstance(java.util.UUID.fromString(userId))
-                } catch (e2: Exception) {
-                    Log.e(TAG, "Cannot create TransmissionMode: ${e2.message}")
+                    p2pClass = Class.forName(className)
+                    Log.d(TAG, "✅ Found P2P class: $className")
+                    break
+                } catch (e: ClassNotFoundException) {
+                    // Try next
                 }
             }
             
+            if (p2pClass == null) {
+                Log.e(TAG, "Cannot find P2P TransmissionMode class")
+                return null
+            }
+            
+            // Tạo P2P mode với UUID của user đích
+            var transmissionMode: Any? = null
+            try {
+                // Thử tạo instance với UUID constructor
+                val uuidClass = Class.forName("java.util.UUID")
+                val userIdUUID = try {
+                    UUID.fromString(userId)
+                } catch (e: IllegalArgumentException) {
+                    Log.e(TAG, "Invalid userId UUID format: $userId")
+                    return null
+                }
+                
+                try {
+                    val constructor = p2pClass.getDeclaredConstructor(uuidClass)
+                    constructor.isAccessible = true
+                    transmissionMode = constructor.newInstance(userIdUUID)
+                    Log.d(TAG, "✅ Created P2P TransmissionMode with userId: $userId")
+                } catch (e: NoSuchMethodException) {
+                    // Thử tìm constructor với nhiều tham số hơn
+                    val constructors = p2pClass.declaredConstructors
+                    Log.d(TAG, "Available P2P constructors: ${constructors.size}")
+                    for (constructor in constructors) {
+                        try {
+                            constructor.isAccessible = true
+                            val paramTypes = constructor.parameterTypes
+                            Log.d(TAG, "P2P constructor params: ${paramTypes.map { it.simpleName }.joinToString()}")
+                            
+                            // Nếu constructor nhận UUID, dùng nó
+                            if (paramTypes.size == 1 && uuidClass.isAssignableFrom(paramTypes[0])) {
+                                transmissionMode = constructor.newInstance(userIdUUID)
+                                Log.d(TAG, "✅ Created P2P TransmissionMode via UUID constructor")
+                                break
+                            }
+                        } catch (e2: Exception) {
+                            Log.d(TAG, "Cannot use constructor: ${e2.message}")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Cannot create P2P TransmissionMode: ${e.message}")
+                e.printStackTrace()
+            }
+            
             if (transmissionMode == null) {
-                Log.e(TAG, "Cannot get TransmissionMode for sending message")
+                Log.e(TAG, "Cannot create TransmissionMode for sending message to user: $userId")
                 return null
             }
             

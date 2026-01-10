@@ -18,8 +18,13 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
         }
     }
     
+    private val appContext: Context = context.applicationContext
     private var isInitialized = false
     private var listeners: MutableList<BridgefyListener> = mutableListOf()
+    
+    // Cache tên thiết bị của mình
+    val myDeviceName: String
+        get() = DeviceNameHelper.getDeviceName(appContext)
     
     fun addListener(listener: BridgefyListener) {
         if (!listeners.contains(listener)) {
@@ -96,6 +101,8 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
             val messageData = JSONObject().apply {
                 put("content", content)
                 put("timestamp", System.currentTimeMillis())
+                put("type", "private") // Mark as private message
+                put("senderName", myDeviceName) // Thêm tên người gửi
             }
             
             val messageId = Bridgefy.sendMessage(userId, messageData.toString())
@@ -105,6 +112,48 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
             Log.e(TAG, "Error sending message", e)
             null
         }
+    }
+    
+    /**
+     * Gửi tin nhắn broadcast tới tất cả người dùng gần đây
+     * @return List of message IDs for each user
+     */
+    fun sendBroadcastMessage(content: String): List<String> {
+        if (!isInitialized) {
+            Log.e(TAG, "Bridgefy not initialized")
+            return emptyList()
+        }
+        
+        val nearbyUsers = getNearbyUsers()
+        if (nearbyUsers.isEmpty()) {
+            Log.w(TAG, "No nearby users to broadcast to")
+            return emptyList()
+        }
+        
+        val messageIds = mutableListOf<String>()
+        
+        try {
+            val messageData = JSONObject().apply {
+                put("content", content)
+                put("timestamp", System.currentTimeMillis())
+                put("type", "broadcast") // Mark as broadcast message
+                put("senderName", myDeviceName) // Thêm tên người gửi
+            }
+            
+            for (user in nearbyUsers) {
+                try {
+                    val messageId = Bridgefy.sendMessage(user.userId, messageData.toString())
+                    Log.d(TAG, "Broadcast message sent to ${user.userId} with ID: $messageId")
+                    messageIds.add(messageId)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error sending broadcast to ${user.userId}", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating broadcast message", e)
+        }
+        
+        return messageIds
     }
     
     fun getNearbyUsers(): List<User> {

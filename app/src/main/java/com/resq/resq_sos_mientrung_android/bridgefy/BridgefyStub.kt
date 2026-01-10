@@ -1,14 +1,65 @@
 package com.resq.resq_sos_mientrung_android.bridgefy
 
 import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import java.util.UUID
 
 // Wrapper classes for Bridgefy SDK
-data class User(val userId: String)
+data class User(
+    val userId: String,
+    val displayName: String = "" // Tên hiển thị thân thiện
+) {
+    // Helper để lấy tên hiển thị, fallback về userId rút gọn nếu không có
+    fun getDisplayNameOrShortId(): String {
+        return if (displayName.isNotBlank()) {
+            displayName
+        } else {
+            // Rút gọn userId để hiển thị
+            if (userId.length > 8) "${userId.take(8)}..." else userId
+        }
+    }
+    
+    // So sánh dựa trên userId
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is User) return false
+        return userId == other.userId
+    }
+    
+    override fun hashCode(): Int = userId.hashCode()
+}
+
 data class Message(val messageId: String, val content: String)
+
+// Helper object để lấy tên thiết bị
+object DeviceNameHelper {
+    private var cachedDeviceName: String? = null
+    
+    fun getDeviceName(context: Context?): String {
+        cachedDeviceName?.let { return it }
+        
+        val name = try {
+            // Thử lấy tên Bluetooth trước
+            val bluetoothName = if (context != null) {
+                try {
+                    Settings.Secure.getString(context.contentResolver, "bluetooth_name")
+                } catch (e: Exception) { null }
+            } else null
+            
+            // Nếu không có, dùng tên thiết bị
+            bluetoothName ?: Build.MODEL ?: "Thiết bị ${Build.MANUFACTURER}"
+        } catch (e: Exception) {
+            "Thiết bị Android"
+        }
+        
+        cachedDeviceName = name
+        return name
+    }
+}
 
 interface BridgefyDelegate {
     fun onMessageReceived(message: Message, user: User)
