@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -128,10 +129,10 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
     
     private fun updateMessagesList() {
         if (messages.isEmpty()) {
-            binding.textNoMessages.visibility = View.VISIBLE
+            binding.layoutEmptyStateChat.visibility = View.VISIBLE
             binding.recyclerViewMessages.visibility = View.GONE
         } else {
-            binding.textNoMessages.visibility = View.GONE
+            binding.layoutEmptyStateChat.visibility = View.GONE
             binding.recyclerViewMessages.visibility = View.VISIBLE
             messagesAdapter.submitList(messages.toList())
             binding.recyclerViewMessages.scrollToPosition(messages.size - 1)
@@ -246,9 +247,14 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
             notifyDataSetChanged()
         }
         
+        override fun getItemViewType(position: Int): Int {
+            return if (messages[position].isSent) 0 else 1
+        }
+        
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
+            val layoutId = if (viewType == 0) R.layout.item_message else R.layout.item_message_received
             val view = LayoutInflater.from(parent.context)
-                .inflate(android.R.layout.simple_list_item_2, parent, false)
+                .inflate(layoutId, parent, false)
             return MessageViewHolder(view)
         }
         
@@ -260,21 +266,13 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
         override fun getItemCount() = messages.size
         
         class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+            private val textMessageContent = itemView.findViewById<TextView>(R.id.textMessageContent)
+            private val textMessageTime = itemView.findViewById<TextView>(R.id.textMessageTime)
+            
             fun bind(message: ChatMessage) {
-                val text1 = itemView.findViewById<android.widget.TextView>(android.R.id.text1)
-                val text2 = itemView.findViewById<android.widget.TextView>(android.R.id.text2)
-                
-                val prefix = if (message.isSent) "Bạn: " else "Người khác: "
-                text1?.text = "$prefix${message.content}"
-                text2?.text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                textMessageContent?.text = message.content
+                textMessageTime?.text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
                     .format(java.util.Date(message.timestamp))
-                
-                if (message.isSent) {
-                    text1?.setTextColor(itemView.context.getColor(R.color.orange_primary))
-                } else {
-                    text1?.setTextColor(itemView.context.getColor(R.color.black))
-                }
-                text2?.setTextColor(itemView.context.getColor(R.color.nav_unselected))
             }
         }
     }

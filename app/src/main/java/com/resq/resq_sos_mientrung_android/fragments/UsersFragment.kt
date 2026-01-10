@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -145,14 +146,24 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     }
     
     private fun updateUsersList() {
+        val userCount = nearbyUsers.size
+        updateUserCountBadge(userCount)
+        
         if (nearbyUsers.isEmpty()) {
-            binding.textNoUsers.visibility = View.VISIBLE
+            binding.layoutEmptyState.visibility = View.VISIBLE
             binding.recyclerViewUsers.visibility = View.GONE
+            binding.textNoUsers.text = "Đang tìm người dùng gần đây..."
+            binding.textEmptySubtitle?.text = "Có 0 người trong mạng. Đảm bảo Bluetooth đã bật và có người dùng khác đang mở app gần bạn."
         } else {
-            binding.textNoUsers.visibility = View.GONE
+            binding.layoutEmptyState.visibility = View.GONE
             binding.recyclerViewUsers.visibility = View.VISIBLE
             usersAdapter.submitList(nearbyUsers.toList())
         }
+    }
+    
+    private fun updateUserCountBadge(count: Int) {
+        binding.textUserCount.text = count.toString()
+        binding.textUserCount.visibility = View.VISIBLE
     }
     
     override fun onRequestPermissionsResult(
@@ -205,9 +216,10 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
         if (!nearbyUsers.contains(user)) {
             nearbyUsers.add(user)
             updateUsersList()
+            val count = nearbyUsers.size
             Snackbar.make(
                 binding.root,
-                "Tìm thấy người dùng mới!",
+                "Tìm thấy người dùng mới! (Tổng: $count người)",
                 Snackbar.LENGTH_SHORT
             ).show()
         }
@@ -217,6 +229,12 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
         android.util.Log.d("UsersFragment", "Mất kết nối với người dùng: ${user.userId}")
         nearbyUsers.remove(user)
         updateUsersList()
+        val count = nearbyUsers.size
+        Snackbar.make(
+            binding.root,
+            "Mất kết nối với người dùng (Còn lại: $count người)",
+            Snackbar.LENGTH_SHORT
+        ).show()
     }
     
     override fun onMessageReceived(message: Message, user: User) {
@@ -249,7 +267,7 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
         
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UserViewHolder {
             val view = LayoutInflater.from(parent.context)
-                .inflate(android.R.layout.simple_list_item_2, parent, false)
+                .inflate(R.layout.item_user, parent, false)
             return UserViewHolder(view)
         }
         
@@ -261,14 +279,15 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
         override fun getItemCount() = users.size
         
         class UserViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+            private val textUserName = itemView.findViewById<TextView>(R.id.textUserName)
+            private val textUserStatus = itemView.findViewById<TextView>(R.id.textUserStatus)
+            private val textUserInitial = itemView.findViewById<TextView>(R.id.textUserInitial)
+            
             fun bind(user: User) {
-                val text1 = itemView.findViewById<android.widget.TextView>(android.R.id.text1)
-                val text2 = itemView.findViewById<android.widget.TextView>(android.R.id.text2)
-                
-                text1?.text = "Người dùng: ${user.userId.take(8)}..."
-                text2?.text = "Đang online"
-                text1?.setTextColor(itemView.context.getColor(R.color.orange_primary))
-                text2?.setTextColor(itemView.context.getColor(R.color.nav_unselected))
+                val shortId = user.userId.take(8)
+                textUserName?.text = "Người dùng $shortId"
+                textUserStatus?.text = "Đang online"
+                textUserInitial?.text = shortId.firstOrNull()?.uppercase() ?: "U"
             }
         }
     }
