@@ -13,4 +13,20 @@
     <color name="nav_selected">#FF6B35</color>
     <color name="nav_unselected">#9E9E9E</color>
     <color name="nav_indicator_background">#20FF6B35</color>
+    
+    <!-- Message colors for light mode -->
+    <color name="message_text_received">#FF000000</color>
+    <color name="message_text_sent">#FFFFFFFF</color>
+    <color name="message_time_received">#9E9E9E</color>
+    <color name="message_bubble_received_bg">#FFFFFF</color>
+    <color name="message_bubble_received_stroke">#E0E0E0</color>
+    <color name="message_input_bg">#FFFFFF</color>
+    <color name="message_input_stroke">#9E9E9E</color>
+    <color name="message_input_text">#FF000000</color>
+    <color name="message_input_hint">#9E9E9E</color>
+    
+    <!-- UI element colors for light mode -->
+    <color name="chat_mode_bg">#FFF5E6</color>
+    <color name="chat_mode_stroke">#FFE0B2</color>
+    <color name="status_container_bg">#F5F5F5</color>
 </resources>

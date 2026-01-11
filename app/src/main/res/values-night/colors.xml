@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark theme colors optimized for battery saving -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Orange theme colors for SOS Rescue App - Dark Mode -->
+    <color name="orange_primary">#FF6B35</color>
+    <color name="orange_primary_dark">#E55A2B</color>
+    <color name="orange_primary_light">#FF8C5A</color>
+    <color name="orange_accent">#FF8C42</color>
+    
+    <!-- Dark backgrounds - using true black (#000000) for maximum battery savings on OLED screens -->
+    <color name="orange_background">#FF000000</color>
+    <color name="nav_background">#FF121212</color>
+    
+    <!-- Navigation colors for dark mode -->
+    <color name="nav_selected">#FF6B35</color>
+    <color name="nav_unselected">#B3FFFFFF</color>
+    <color name="nav_indicator_background">#20FF6B35</color>
+    
+    <!-- Message colors for dark mode -->
+    <color name="message_text_received">#FFFFFFFF</color>
+    <color name="message_text_sent">#FFFFFFFF</color>
+    <color name="message_time_received">#B3FFFFFF</color>
+    <color name="message_bubble_received_bg">#FF1E1E1E</color>
+    <color name="message_bubble_received_stroke">#33FFFFFF</color>
+    <color name="message_input_bg">#FF1E1E1E</color>
+    <color name="message_input_stroke">#33FFFFFF</color>
+    <color name="message_input_text">#FFFFFFFF</color>
+    <color name="message_input_hint">#80FFFFFF</color>
+    
+    <!-- UI element colors for dark mode -->
+    <color name="chat_mode_bg">#FF1E1E1E</color>
+    <color name="chat_mode_stroke">#33FFFFFF</color>
+    <color name="status_container_bg">#FF1E1E1E</color>
+</resources>

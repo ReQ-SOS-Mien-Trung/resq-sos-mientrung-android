@@ -43,7 +43,7 @@
             android:layout_height="wrap_content"
             android:text="Tin nhắn"
             android:textSize="14sp"
-            android:textColor="@color/black"
+            android:textColor="@color/message_text_received"
             android:lineSpacingExtra="4dp" />
 
         <TextView
@@ -52,7 +52,7 @@
             android:layout_height="wrap_content"
             android:text="10:30"
             android:textSize="10sp"
-            android:textColor="@color/nav_unselected"
+            android:textColor="@color/message_time_received"
             android:layout_marginTop="4dp"
             android:layout_gravity="end" />
     </LinearLayout>
