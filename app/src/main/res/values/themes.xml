@@ -1,8 +1,13 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+    <!-- Base application theme - Light Mode (Optional) -->
     <style name="Base.Theme.ResqSOSMienTrungAndroid" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <!-- Light theme colors -->
+        <item name="colorPrimary">@color/orange_primary</item>
+        <item name="colorPrimaryDark">@color/orange_primary_dark</item>
+        <item name="colorAccent">@color/orange_accent</item>
+        <item name="android:windowBackground">@color/orange_background</item>
+        <item name="android:statusBarColor">@color/orange_background</item>
+        <item name="android:navigationBarColor">@color/nav_background</item>
     </style>
 
     <style name="Theme.ResqSOSMienTrungAndroid" parent="Base.Theme.ResqSOSMienTrungAndroid" />
