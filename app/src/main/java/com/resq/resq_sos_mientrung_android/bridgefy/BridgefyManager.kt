@@ -26,6 +26,16 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
     val myDeviceName: String
         get() = DeviceNameHelper.getDeviceName(appContext)
     
+    // Get local user ID (for SOS signals)
+    private fun getLocalUserId(): String {
+        // In production, get from Bridgefy SDK
+        // For now, use a consistent ID based on device
+        return android.provider.Settings.Secure.getString(
+            appContext.contentResolver,
+            android.provider.Settings.Secure.ANDROID_ID
+        ) ?: java.util.UUID.randomUUID().toString()
+    }
+    
     fun addListener(listener: BridgefyListener) {
         if (!listeners.contains(listener)) {
             listeners.add(listener)
@@ -112,6 +122,56 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
             Log.e(TAG, "Error sending message", e)
             null
         }
+    }
+    
+    /**
+     * Phát tín hiệu SOS kèm vị trí GPS thật để các thiết bị khác có thể tìm thấy
+     * @param latitude Vĩ độ GPS
+     * @param longitude Kinh độ GPS
+     * @return List of message IDs for each user
+     */
+    fun sendSOSSignal(latitude: Double? = null, longitude: Double? = null): List<String> {
+        if (!isInitialized) {
+            Log.e(TAG, "Bridgefy not initialized")
+            return emptyList()
+        }
+        
+        val nearbyUsers = getNearbyUsers()
+        if (nearbyUsers.isEmpty()) {
+            Log.w(TAG, "No nearby users to send SOS to")
+            return emptyList()
+        }
+        
+        val messageIds = mutableListOf<String>()
+        
+        try {
+            val messageData = org.json.JSONObject().apply {
+                put("type", "SOS")
+                put("timestamp", System.currentTimeMillis())
+                put("senderName", myDeviceName)
+                put("senderId", getLocalUserId())
+                // Thêm vị trí GPS nếu có
+                if (latitude != null && longitude != null) {
+                    put("latitude", latitude)
+                    put("longitude", longitude)
+                    Log.d(TAG, "SOS signal với vị trí GPS: lat=$latitude, lng=$longitude")
+                }
+            }
+            
+            for (user in nearbyUsers) {
+                try {
+                    val messageId = Bridgefy.sendMessage(user.userId, messageData.toString())
+                    Log.d(TAG, "SOS signal sent to ${user.userId} with ID: $messageId")
+                    messageIds.add(messageId)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error sending SOS to ${user.userId}", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating SOS message", e)
+        }
+        
+        return messageIds
     }
     
     /**

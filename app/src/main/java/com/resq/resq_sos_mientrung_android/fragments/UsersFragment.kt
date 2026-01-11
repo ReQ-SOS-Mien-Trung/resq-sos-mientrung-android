@@ -19,6 +19,9 @@ import com.resq.resq_sos_mientrung_android.bridgefy.BridgefyManager
 import com.resq.resq_sos_mientrung_android.bridgefy.Message
 import com.resq.resq_sos_mientrung_android.bridgefy.User
 import com.resq.resq_sos_mientrung_android.databinding.FragmentUsersBinding
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import android.location.Location
 
 class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     private var _binding: FragmentUsersBinding? = null
@@ -28,6 +31,7 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     private val usersAdapter = UsersAdapter()
     private val nearbyUsers = mutableListOf<User>()
     private val BLUETOOTH_PERMISSION_REQUEST_CODE = 1002
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
     
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -43,10 +47,16 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
         
         bridgefyManager = BridgefyManager.getInstance(requireContext())
         bridgefyManager.addListener(this)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
         
         setupRecyclerView()
         updateBridgefyStatus()
         checkAndRequestPermissions()
+        
+        // Setup SOS button
+        binding.buttonSOS.setOnClickListener {
+            sendSOSSignal()
+        }
         
         // Periodically check status (every 500ms) until initialized
         val handler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -277,6 +287,137 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     
     override fun onMessageFailed(messageId: String, error: String) {
         // Not used in UsersFragment
+    }
+    
+    private fun sendSOSSignal() {
+        try {
+            if (!isAdded || _binding == null) {
+                android.util.Log.w("UsersFragment", "Fragment not attached, cannot send SOS")
+                return
+            }
+            
+            if (!bridgefyManager.isInitialized()) {
+                Snackbar.make(
+                    binding.root,
+                    "Bridgefy chưa sẵn sàng. Vui lòng đợi...",
+                    Snackbar.LENGTH_SHORT
+                ).show()
+                return
+            }
+            
+            // Lấy vị trí GPS thật trước khi gửi SOS
+            if (checkLocationPermission()) {
+                try {
+                    fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
+                        try {
+                            location?.let {
+                                val messageIds = bridgefyManager.sendSOSSignal(it.latitude, it.longitude)
+                                if (messageIds.isEmpty()) {
+                                    Snackbar.make(
+                                        binding.root,
+                                        "Không có thiết bị gần đây để gửi tín hiệu SOS",
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    Snackbar.make(
+                                        binding.root,
+                                        "✅ Đã phát tín hiệu SOS (vị trí: ${String.format("%.6f", it.latitude)}, ${String.format("%.6f", it.longitude)}) đến ${messageIds.size} thiết bị",
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
+                                }
+                            } ?: run {
+                                // Không lấy được vị trí, gửi SOS không có vị trí
+                                val messageIds = bridgefyManager.sendSOSSignal()
+                                if (messageIds.isEmpty()) {
+                                    Snackbar.make(
+                                        binding.root,
+                                        "Không có thiết bị gần đây. Không lấy được vị trí GPS",
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    Snackbar.make(
+                                        binding.root,
+                                        "⚠️ Đã phát SOS nhưng chưa có vị trí GPS",
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("UsersFragment", "Error in location callback", e)
+                            val messageIds = bridgefyManager.sendSOSSignal()
+                            Snackbar.make(
+                                binding.root,
+                                "⚠️ Đã phát SOS nhưng có lỗi khi xử lý vị trí",
+                                Snackbar.LENGTH_SHORT
+                            ).show()
+                        }
+                    }.addOnFailureListener { e ->
+                        android.util.Log.e("UsersFragment", "Error getting location", e)
+                        try {
+                            // Gửi SOS không có vị trí
+                            val messageIds = bridgefyManager.sendSOSSignal()
+                            Snackbar.make(
+                                binding.root,
+                                "⚠️ Đã phát SOS nhưng không lấy được vị trí GPS",
+                                Snackbar.LENGTH_SHORT
+                            ).show()
+                        } catch (ex: Exception) {
+                            android.util.Log.e("UsersFragment", "Error sending SOS without location", ex)
+                        }
+                    }
+                } catch (e: SecurityException) {
+                    android.util.Log.e("UsersFragment", "Security exception getting location", e)
+                    try {
+                        val messageIds = bridgefyManager.sendSOSSignal()
+                    } catch (ex: Exception) {
+                        android.util.Log.e("UsersFragment", "Error sending SOS", ex)
+                    }
+                }
+            } else {
+                // Không có quyền location, gửi SOS không có vị trí
+                try {
+                    val messageIds = bridgefyManager.sendSOSSignal()
+                    if (messageIds.isEmpty()) {
+                        Snackbar.make(
+                            binding.root,
+                            "Không có thiết bị gần đây. Cần quyền vị trí để gửi vị trí GPS",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        Snackbar.make(
+                            binding.root,
+                            "⚠️ Đã phát SOS nhưng cần quyền vị trí để gửi GPS",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("UsersFragment", "Error sending SOS without permission", e)
+                    Snackbar.make(
+                        binding.root,
+                        "Lỗi khi gửi tín hiệu SOS",
+                        Snackbar.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("UsersFragment", "Error in sendSOSSignal", e)
+            Snackbar.make(
+                binding.root,
+                "Lỗi: ${e.message ?: "Không xác định"}",
+                Snackbar.LENGTH_SHORT
+            ).show()
+        }
+    }
+    
+    private fun checkLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     override fun onDestroyView() {

@@ -83,6 +83,10 @@ dependencies {
     implementation(libs.androidx.multidex)
     implementation(libs.play.services.maps)
     implementation(libs.play.services.location)
+    implementation(libs.camerax.core)
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.view)
     coreLibraryDesugaring(libs.androidx.desugar.jdk.libs)
     
     // Bridgefy SDK

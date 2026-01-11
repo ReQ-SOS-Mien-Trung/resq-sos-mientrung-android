@@ -66,27 +66,52 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:background="@drawable/status_container"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="10dp"
-                    android:paddingTop="6dp"
-                    android:paddingBottom="6dp">
+                    android:layout_marginStart="8dp">
 
-                    <View
-                        android:id="@+id/statusIndicator"
-                        android:layout_width="10dp"
-                        android:layout_height="10dp"
-                        android:background="@drawable/bridgefy_status_indicator"
-                        android:layout_marginEnd="6dp" />
-
-                    <TextView
-                        android:id="@+id/textBridgefyStatus"
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Đang khởi động..."
-                        android:textSize="11sp"
-                        android:textColor="@color/nav_unselected"
-                        android:fontFamily="sans-serif" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@drawable/status_container"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp">
+
+                        <View
+                            android:id="@+id/statusIndicator"
+                            android:layout_width="10dp"
+                            android:layout_height="10dp"
+                            android:background="@drawable/bridgefy_status_indicator"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:id="@+id/textBridgefyStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Đang khởi động..."
+                            android:textSize="11sp"
+                            android:textColor="@color/nav_unselected"
+                            android:fontFamily="sans-serif" />
+                    </LinearLayout>
+                    
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/buttonSOS"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🚨 SOS"
+                        android:textColor="@android:color/white"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        app:backgroundTint="@android:color/holo_red_dark"
+                        app:cornerRadius="20dp"
+                        android:layout_marginStart="8dp"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
+                        style="@style/Widget.MaterialComponents.Button" />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>
