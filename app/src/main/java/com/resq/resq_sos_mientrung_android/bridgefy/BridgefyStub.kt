@@ -306,25 +306,49 @@ object Bridgefy {
     }
     
     fun getNearbyUsers(): List<User> {
-        // Try to get users from real SDK first
+        val allUsers = mutableMapOf<String, User>()
+        
+        // Thêm users từ SDK thật trước (nếu có)
         if (isUsingRealSDK && BridgefySDKWrapper.isRealSDKAvailable()) {
             val realUsers = BridgefySDKWrapper.getNearbyUsersRealSDK()
-            if (realUsers.isNotEmpty()) {
-                return realUsers
+            for (user in realUsers) {
+                allUsers[user.userId] = user
             }
         }
         
-        // Fallback to stub list
-        return nearbyUsers.toList()
+        // Thêm/merge users từ stub list (những user được add từ messages)
+        for (user in nearbyUsers) {
+            val existing = allUsers[user.userId]
+            if (existing == null) {
+                // User chưa có, thêm vào
+                allUsers[user.userId] = user
+            } else if (user.displayName.isNotBlank() && existing.displayName.isBlank()) {
+                // User đã có nhưng chưa có tên, cập nhật tên
+                allUsers[user.userId] = user
+            }
+        }
+        
+        Log.d(TAG, "getNearbyUsers: returning ${allUsers.size} unique users")
+        return allUsers.values.toList()
     }
     
     fun isUsingRealSDK(): Boolean = isUsingRealSDK
     
     fun addUser(user: User) {
-        if (!nearbyUsers.contains(user)) {
+        // Kiểm tra bằng userId vì equals() đã override
+        val existingUser = nearbyUsers.find { it.userId == user.userId }
+        if (existingUser == null) {
             nearbyUsers.add(user)
-            delegate?.onUserFound(user)
-            Log.d(TAG, "User added: ${user.userId}")
+            Log.d(TAG, "User added: ${user.userId} (${user.displayName})")
+        } else {
+            // Update displayName nếu user mới có tên tốt hơn
+            if (user.displayName.isNotBlank() && existingUser.displayName.isBlank()) {
+                nearbyUsers.remove(existingUser)
+                nearbyUsers.add(user)
+                Log.d(TAG, "User updated: ${user.userId} with name ${user.displayName}")
+            } else {
+                Log.d(TAG, "User ${user.userId} already exists, skipping")
+            }
         }
     }
     

@@ -45,11 +45,12 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
     data class ChatMessage(
         val id: String,
         val content: String,
-        val userId: String, // "broadcast" for broadcast messages, or specific userId
+        val userId: String, // ID của người gửi tin nhắn
         val senderName: String, // Tên hiển thị của người gửi
         val timestamp: Long,
         val isSent: Boolean,
-        val isBroadcast: Boolean = false
+        val isBroadcast: Boolean = false,
+        val targetUserId: String? = null // ID người nhận (cho tin nhắn riêng)
     )
     
     override fun onCreateView(
@@ -138,6 +139,7 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
     }
     
     fun setPrivateChatMode(userId: String, displayName: String? = null) {
+        android.util.Log.d("ChatFragment", "Setting private chat mode with userId: $userId, displayName: $displayName")
         isBroadcastMode = false
         selectedUserId = userId
         selectedUserDisplayName = displayName ?: userDisplayNames[userId]
@@ -152,6 +154,7 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
         binding.buttonClearPrivateChat.visibility = View.VISIBLE
         binding.textUserCount.text = "1 người"
         
+        android.util.Log.d("ChatFragment", "Private mode set - isBroadcastMode: $isBroadcastMode, selectedUserId: $selectedUserId")
         updateMessagesList()
         
         android.util.Log.d("ChatFragment", "Switched to PRIVATE mode with user: $userId ($friendlyName)")
@@ -188,11 +191,15 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
             val messageText = binding.editTextMessage.text.toString().trim()
             if (messageText.isEmpty()) return@setOnClickListener
             
+            android.util.Log.d("ChatFragment", "Send button clicked - isBroadcastMode: $isBroadcastMode, selectedUserId: $selectedUserId")
+            
             if (isBroadcastMode) {
                 // BROADCAST MODE - send to all nearby users
+                android.util.Log.d("ChatFragment", "Sending BROADCAST message")
                 sendBroadcastMessage(messageText)
             } else {
                 // PRIVATE MODE - send to specific user
+                android.util.Log.d("ChatFragment", "Sending PRIVATE message to: $selectedUserId")
                 sendPrivateMessage(messageText)
             }
         }
@@ -313,11 +320,12 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
             val chatMessage = ChatMessage(
                 id = messageIds.first(), // Use first ID as reference
                 content = messageText,
-                userId = "broadcast",
+                userId = "me", // Đánh dấu tin nhắn do mình gửi
                 senderName = bridgefyManager.myDeviceName, // Tên của mình
                 timestamp = System.currentTimeMillis(),
                 isSent = true,
-                isBroadcast = true
+                isBroadcast = true,
+                targetUserId = null // Broadcast không có target cụ thể
             )
             messages.add(chatMessage)
             updateMessagesList()
@@ -339,6 +347,7 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
     
     private fun sendPrivateMessage(messageText: String) {
         if (selectedUserId == null) {
+            android.util.Log.e("ChatFragment", "Cannot send private message: selectedUserId is null")
             Toast.makeText(
                 requireContext(),
                 "Chưa chọn người dùng để nhắn tin.",
@@ -347,23 +356,30 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
             return
         }
         
+        android.util.Log.d("ChatFragment", "Sending private message to userId: $selectedUserId, content: $messageText")
         val messageId = bridgefyManager.sendMessage(selectedUserId!!, messageText)
         
         if (messageId != null) {
+            android.util.Log.d("ChatFragment", "Private message sent successfully with ID: $messageId")
             // Add message to local list optimistically
+            // userId = "me" để đánh dấu tin nhắn này do mình gửi
+            // targetUserId = selectedUserId để biết gửi cho ai
             val chatMessage = ChatMessage(
                 id = messageId,
                 content = messageText,
-                userId = selectedUserId!!,
+                userId = "me", // Đánh dấu tin nhắn do mình gửi
                 senderName = bridgefyManager.myDeviceName, // Tên của mình
                 timestamp = System.currentTimeMillis(),
                 isSent = true,
-                isBroadcast = false
+                isBroadcast = false, // Đảm bảo đánh dấu là tin nhắn riêng
+                targetUserId = selectedUserId // Lưu ID người nhận
             )
             messages.add(chatMessage)
+            android.util.Log.d("ChatFragment", "Added private message to list. Total messages: ${messages.size}")
             updateMessagesList()
             binding.editTextMessage.text?.clear()
         } else {
+            android.util.Log.e("ChatFragment", "Failed to send private message to: $selectedUserId")
             Toast.makeText(
                 requireContext(),
                 "Không thể gửi tin nhắn. Vui lòng thử lại.",
@@ -376,17 +392,40 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
         // Filter messages based on current mode
         val filteredMessages = when {
             isBroadcastMode -> {
-                // In broadcast mode, show all messages (both broadcast and private)
-                messages.toList()
+                // In broadcast mode, show ONLY broadcast messages (not private messages)
+                val filtered = messages.filter { message -> message.isBroadcast }
+                android.util.Log.d("ChatFragment", "Broadcast mode: showing ${filtered.size} broadcast messages from ${messages.size} total")
+                filtered
             }
             selectedUserId != null -> {
                 // In private mode, show only messages from/to this user
-                messages.filter { 
-                    it.userId == selectedUserId || 
-                    (it.isSent && !it.isBroadcast && it.userId == selectedUserId)
+                // - Messages sent TO this user (isSent = true, targetUserId = selectedUserId)
+                // - Messages received FROM this user (isSent = false, userId = selectedUserId)
+                val filtered = messages.filter { message ->
+                    // Must not be a broadcast message
+                    if (message.isBroadcast) {
+                        false
+                    } else {
+                        // For sent messages: targetUserId should match selectedUserId (người nhận)
+                        // For received messages: userId should match selectedUserId (người gửi)
+                        val matches = if (message.isSent) {
+                            // Tin nhắn do mình gửi: kiểm tra targetUserId
+                            message.targetUserId == selectedUserId
+                        } else {
+                            // Tin nhắn nhận được: kiểm tra userId (người gửi)
+                            message.userId == selectedUserId
+                        }
+                        if (!matches) {
+                            android.util.Log.d("ChatFragment", "Message filtered out: userId=${message.userId}, targetUserId=${message.targetUserId}, selectedUserId=$selectedUserId, isSent=${message.isSent}, isBroadcast=${message.isBroadcast}")
+                        }
+                        matches
+                    }
                 }
+                android.util.Log.d("ChatFragment", "Private mode: filtered ${filtered.size} messages from ${messages.size} total (selectedUserId: $selectedUserId)")
+                filtered
             }
             else -> {
+                android.util.Log.d("ChatFragment", "No mode set: showing all ${messages.size} messages")
                 messages.toList()
             }
         }
@@ -513,17 +552,31 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                     }
                 }
                 
+                val isBroadcastMessage = type == "broadcast"
+                
+                // QUAN TRỌNG: Luôn dùng user.userId (SDK UUID) làm định danh người gửi
+                // vì đây là ID nhất quán với danh sách getNearbyUsers() và selectedUserId
+                // senderId trong JSON có thể là ANDROID_ID (không khớp với SDK UUID)
+                val actualSenderId = user.userId
+                
+                // Lấy targetUserId từ JSON (ID người nhận - là mình nếu đây là tin nhắn riêng)
+                val targetUserId = messageData.optString("targetUserId", null)
+                
+                android.util.Log.d("ChatFragment", "Received message - actualSenderId (SDK): $actualSenderId, targetUserId: $targetUserId, type: $type, isBroadcast: $isBroadcastMessage, current mode: ${if (isBroadcastMode) "broadcast" else "private"}, selectedUserId: $selectedUserId")
+                
                 val chatMessage = ChatMessage(
                     id = message.messageId,
                     content = content,
-                    userId = user.userId,
+                    userId = actualSenderId, // Dùng SDK UUID của người gửi
                     senderName = displayName,
                     timestamp = timestamp,
                     isSent = false,
-                    isBroadcast = type == "broadcast"
+                    isBroadcast = isBroadcastMessage,
+                    targetUserId = targetUserId // Lưu lại targetUserId nếu có
                 )
                 
                 messages.add(chatMessage)
+                android.util.Log.d("ChatFragment", "Added received message to list. Total messages: ${messages.size}")
                 updateMessagesList()
                 
                 // Show notification if not currently viewing this conversation
@@ -572,14 +625,18 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                             System.currentTimeMillis()
                         }
                         
+                        // Luôn dùng user.userId (SDK UUID) làm định danh người gửi
+                        val targetUserId = messageData.optString("targetUserId", null)
+                        
                         val chatMessage = ChatMessage(
                             id = message.messageId,
                             content = content,
-                            userId = user.userId,
+                            userId = user.userId, // SDK UUID của người gửi
                             senderName = displayName,
                             timestamp = timestamp,
                             isSent = false,
-                            isBroadcast = messageData.optString("type", "") == "broadcast"
+                            isBroadcast = messageData.optString("type", "") == "broadcast",
+                            targetUserId = targetUserId
                         )
                         
                         messages.add(chatMessage)
@@ -616,14 +673,18 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                                 user.getDisplayNameOrShortId()
                             }
                             
+                            // Luôn dùng user.userId (SDK UUID) làm định danh người gửi
+                            val targetUserId = messageData.optString("targetUserId", null)
+                            
                             val chatMessage = ChatMessage(
                                 id = message.messageId,
                                 content = content,
-                                userId = user.userId,
+                                userId = user.userId, // SDK UUID của người gửi
                                 senderName = displayName,
                                 timestamp = System.currentTimeMillis(),
                                 isSent = false,
-                                isBroadcast = messageData.optString("type", "") == "broadcast"
+                                isBroadcast = messageData.optString("type", "") == "broadcast",
+                                targetUserId = targetUserId
                             )
                             
                             messages.add(chatMessage)
@@ -645,7 +706,8 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                         senderName = displayName,
                         timestamp = System.currentTimeMillis(),
                         isSent = false,
-                        isBroadcast = false
+                        isBroadcast = false,
+                        targetUserId = null // Plain text không có targetUserId
                     )
                     messages.add(chatMessage)
                     updateMessagesList()
@@ -661,7 +723,8 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                     senderName = displayName,
                     timestamp = System.currentTimeMillis(),
                     isSent = false,
-                    isBroadcast = false
+                    isBroadcast = false,
+                    targetUserId = null // Exception case không có targetUserId
                 )
                 messages.add(chatMessage)
                 updateMessagesList()

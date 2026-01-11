@@ -80,6 +80,39 @@ object BridgefySDKWrapper {
      */
     fun getBridgefyInstance(): Any? = bridgefyInstance
     
+    // Cache local user ID để không cần query SDK mỗi lần
+    private var cachedLocalUserId: String? = null
+    
+    /**
+     * Lấy local user ID (SDK UUID) - đây là ID mà các thiết bị khác sẽ thấy
+     */
+    fun getLocalUserId(): String? {
+        // Return cached value nếu có
+        cachedLocalUserId?.let { return it }
+        
+        val instance = bridgefyInstance ?: return null
+        return try {
+            val methods = instance.javaClass.declaredMethods
+            val currentUserIdMethod = methods.find { it.name.contains("currentUserId") }
+            if (currentUserIdMethod != null) {
+                currentUserIdMethod.isAccessible = true
+                val uuid = currentUserIdMethod.invoke(instance) as? java.util.UUID
+                val userId = uuid?.toString()
+                if (userId != null) {
+                    cachedLocalUserId = userId
+                    Log.d(TAG, "Got local user ID from SDK: $userId")
+                }
+                userId
+            } else {
+                Log.w(TAG, "currentUserId method not found")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting local user ID: ${e.message}")
+            null
+        }
+    }
+    
     /**
      * Kiểm tra xem SDK đã được start chưa
      */

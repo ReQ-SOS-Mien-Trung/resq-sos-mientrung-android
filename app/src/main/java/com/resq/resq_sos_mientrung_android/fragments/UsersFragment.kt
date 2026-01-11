@@ -42,6 +42,10 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
         return binding.root
     }
 
+    // Handler để auto-refresh danh sách users
+    private var refreshHandler: android.os.Handler? = null
+    private var refreshRunnable: Runnable? = null
+    
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
@@ -67,10 +71,39 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
                     handler.postDelayed(this, 500)
                 } else {
                     updateBridgefyStatus()
+                    // Bắt đầu auto-refresh sau khi initialized
+                    startAutoRefresh()
                 }
             }
         }
         handler.post(statusChecker)
+    }
+    
+    /**
+     * Tự động refresh danh sách và gửi presence mỗi 10 giây
+     * Giải quyết vấn đề one-way discovery
+     */
+    private fun startAutoRefresh() {
+        if (refreshHandler != null) return // Đã bắt đầu rồi
+        
+        refreshHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        refreshRunnable = object : Runnable {
+            override fun run() {
+                if (_binding != null && isAdded) {
+                    // Refresh danh sách và gửi presence
+                    loadNearbyUsers()
+                    android.util.Log.d("UsersFragment", "🔄 Auto-refresh: ${nearbyUsers.size} users")
+                    refreshHandler?.postDelayed(this, 10000) // Mỗi 10 giây
+                }
+            }
+        }
+        refreshHandler?.postDelayed(refreshRunnable!!, 10000)
+    }
+    
+    private fun stopAutoRefresh() {
+        refreshRunnable?.let { refreshHandler?.removeCallbacks(it) }
+        refreshHandler = null
+        refreshRunnable = null
     }
     
     private fun updateBridgefyStatus() {
@@ -165,6 +198,10 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
         if (bridgefyManager.isInitialized()) {
             // Thử start SDK nếu chưa start (sau khi permissions được grant)
             bridgefyManager.tryStartSDK()
+            
+            // Gửi presence announcement để các thiết bị khác biết mình online
+            // Giải quyết vấn đề "one-way discovery"
+            bridgefyManager.announcePresence()
             
             val users = bridgefyManager.getNearbyUsers()
             nearbyUsers.clear()
@@ -422,6 +459,7 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        stopAutoRefresh()
         bridgefyManager.removeListener(this)
         _binding = null
     }
