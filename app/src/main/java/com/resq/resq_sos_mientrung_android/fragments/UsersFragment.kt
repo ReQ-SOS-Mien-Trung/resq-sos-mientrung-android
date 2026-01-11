@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -18,6 +19,9 @@ import com.resq.resq_sos_mientrung_android.bridgefy.BridgefyManager
 import com.resq.resq_sos_mientrung_android.bridgefy.Message
 import com.resq.resq_sos_mientrung_android.bridgefy.User
 import com.resq.resq_sos_mientrung_android.databinding.FragmentUsersBinding
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import android.location.Location
 
 class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     private var _binding: FragmentUsersBinding? = null
@@ -27,6 +31,7 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     private val usersAdapter = UsersAdapter()
     private val nearbyUsers = mutableListOf<User>()
     private val BLUETOOTH_PERMISSION_REQUEST_CODE = 1002
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
     
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -42,10 +47,16 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
         
         bridgefyManager = BridgefyManager.getInstance(requireContext())
         bridgefyManager.addListener(this)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
         
         setupRecyclerView()
         updateBridgefyStatus()
         checkAndRequestPermissions()
+        
+        // Setup SOS button
+        binding.buttonSOS.setOnClickListener {
+            sendSOSSignal()
+        }
         
         // Periodically check status (every 500ms) until initialized
         val handler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -76,6 +87,14 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     
     private fun setupRecyclerView() {
         binding.recyclerViewUsers.layoutManager = LinearLayoutManager(requireContext())
+        // Pass click callback to adapter
+        usersAdapter.setOnUserClickListener { user ->
+            // Navigate to chat with selected user
+            val activity = requireActivity()
+            if (activity is com.resq.resq_sos_mientrung_android.MainActivity) {
+                activity.navigateToChatWithUser(user.userId, user.getDisplayNameOrShortId())
+            }
+        }
         binding.recyclerViewUsers.adapter = usersAdapter
         
         updateUsersList()
@@ -98,6 +117,13 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
                 permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+            }
+            if (ContextCompat.checkSelfPermission(
+                    requireContext(),
+                    Manifest.permission.BLUETOOTH_ADVERTISE
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
             }
         } else {
             if (ContextCompat.checkSelfPermission(
@@ -137,6 +163,9 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     
     private fun loadNearbyUsers() {
         if (bridgefyManager.isInitialized()) {
+            // Thử start SDK nếu chưa start (sau khi permissions được grant)
+            bridgefyManager.tryStartSDK()
+            
             val users = bridgefyManager.getNearbyUsers()
             nearbyUsers.clear()
             nearbyUsers.addAll(users)
@@ -145,14 +174,24 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     }
     
     private fun updateUsersList() {
+        val userCount = nearbyUsers.size
+        updateUserCountBadge(userCount)
+        
         if (nearbyUsers.isEmpty()) {
-            binding.textNoUsers.visibility = View.VISIBLE
+            binding.layoutEmptyState.visibility = View.VISIBLE
             binding.recyclerViewUsers.visibility = View.GONE
+            binding.textNoUsers.text = "Đang tìm người dùng gần đây..."
+            binding.textEmptySubtitle?.text = "Có 0 người trong mạng. Đảm bảo Bluetooth đã bật và có người dùng khác đang mở app gần bạn."
         } else {
-            binding.textNoUsers.visibility = View.GONE
+            binding.layoutEmptyState.visibility = View.GONE
             binding.recyclerViewUsers.visibility = View.VISIBLE
             usersAdapter.submitList(nearbyUsers.toList())
         }
+    }
+    
+    private fun updateUserCountBadge(count: Int) {
+        binding.textUserCount.text = count.toString()
+        binding.textUserCount.visibility = View.VISIBLE
     }
     
     override fun onRequestPermissionsResult(
@@ -178,45 +217,64 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     // BridgefyListener callbacks
     override fun onBridgefyStart() {
         android.util.Log.d("UsersFragment", "Bridgefy đã khởi động thành công!")
-        updateBridgefyStatus()
-        loadNearbyUsers()
-        Snackbar.make(
-            binding.root,
-            "Bridgefy đã sẵn sàng! Đang tìm người dùng gần đây...",
-            Snackbar.LENGTH_SHORT
-        ).show()
-    }
-    
-    override fun onBridgefyStartError(error: String) {
-        android.util.Log.e("UsersFragment", "Lỗi khởi động Bridgefy: $error")
-        updateBridgefyStatus()
-        binding.statusIndicator.setBackgroundResource(R.drawable.bridgefy_status_indicator)
-        binding.textBridgefyStatus.text = "Lỗi: $error"
-        binding.textBridgefyStatus.setTextColor(requireContext().getColor(android.R.color.holo_red_dark))
-        Snackbar.make(
-            binding.root,
-            "Lỗi khởi động Bridgefy: $error",
-            Snackbar.LENGTH_LONG
-        ).show()
-    }
-    
-    override fun onUserFound(user: User) {
-        android.util.Log.d("UsersFragment", "Tìm thấy người dùng: ${user.userId}")
-        if (!nearbyUsers.contains(user)) {
-            nearbyUsers.add(user)
-            updateUsersList()
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            updateBridgefyStatus()
+            loadNearbyUsers()
             Snackbar.make(
                 binding.root,
-                "Tìm thấy người dùng mới!",
+                "Bridgefy đã sẵn sàng! Đang tìm người dùng gần đây...",
                 Snackbar.LENGTH_SHORT
             ).show()
         }
     }
     
+    override fun onBridgefyStartError(error: String) {
+        android.util.Log.e("UsersFragment", "Lỗi khởi động Bridgefy: $error")
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            updateBridgefyStatus()
+            binding.statusIndicator.setBackgroundResource(R.drawable.bridgefy_status_indicator)
+            binding.textBridgefyStatus.text = "Lỗi: $error"
+            binding.textBridgefyStatus.setTextColor(requireContext().getColor(android.R.color.holo_red_dark))
+            Snackbar.make(
+                binding.root,
+                "Lỗi khởi động Bridgefy: $error",
+                Snackbar.LENGTH_LONG
+            ).show()
+        }
+    }
+    
+    override fun onUserFound(user: User) {
+        android.util.Log.d("UsersFragment", "Tìm thấy người dùng: ${user.userId}")
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            if (!nearbyUsers.contains(user)) {
+                nearbyUsers.add(user)
+                updateUsersList()
+                val count = nearbyUsers.size
+                Snackbar.make(
+                    binding.root,
+                    "Tìm thấy người dùng mới! (Tổng: $count người)",
+                    Snackbar.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+    
     override fun onUserLost(user: User) {
         android.util.Log.d("UsersFragment", "Mất kết nối với người dùng: ${user.userId}")
-        nearbyUsers.remove(user)
-        updateUsersList()
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            nearbyUsers.remove(user)
+            updateUsersList()
+            val count = nearbyUsers.size
+            Snackbar.make(
+                binding.root,
+                "Mất kết nối với người dùng (Còn lại: $count người)",
+                Snackbar.LENGTH_SHORT
+            ).show()
+        }
     }
     
     override fun onMessageReceived(message: Message, user: User) {
@@ -230,6 +288,137 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     override fun onMessageFailed(messageId: String, error: String) {
         // Not used in UsersFragment
     }
+    
+    private fun sendSOSSignal() {
+        try {
+            if (!isAdded || _binding == null) {
+                android.util.Log.w("UsersFragment", "Fragment not attached, cannot send SOS")
+                return
+            }
+            
+            if (!bridgefyManager.isInitialized()) {
+                Snackbar.make(
+                    binding.root,
+                    "Bridgefy chưa sẵn sàng. Vui lòng đợi...",
+                    Snackbar.LENGTH_SHORT
+                ).show()
+                return
+            }
+            
+            // Lấy vị trí GPS thật trước khi gửi SOS
+            if (checkLocationPermission()) {
+                try {
+                    fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
+                        try {
+                            location?.let {
+                                val messageIds = bridgefyManager.sendSOSSignal(it.latitude, it.longitude)
+                                if (messageIds.isEmpty()) {
+                                    Snackbar.make(
+                                        binding.root,
+                                        "Không có thiết bị gần đây để gửi tín hiệu SOS",
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    Snackbar.make(
+                                        binding.root,
+                                        "✅ Đã phát tín hiệu SOS (vị trí: ${String.format("%.6f", it.latitude)}, ${String.format("%.6f", it.longitude)}) đến ${messageIds.size} thiết bị",
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
+                                }
+                            } ?: run {
+                                // Không lấy được vị trí, gửi SOS không có vị trí
+                                val messageIds = bridgefyManager.sendSOSSignal()
+                                if (messageIds.isEmpty()) {
+                                    Snackbar.make(
+                                        binding.root,
+                                        "Không có thiết bị gần đây. Không lấy được vị trí GPS",
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    Snackbar.make(
+                                        binding.root,
+                                        "⚠️ Đã phát SOS nhưng chưa có vị trí GPS",
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("UsersFragment", "Error in location callback", e)
+                            val messageIds = bridgefyManager.sendSOSSignal()
+                            Snackbar.make(
+                                binding.root,
+                                "⚠️ Đã phát SOS nhưng có lỗi khi xử lý vị trí",
+                                Snackbar.LENGTH_SHORT
+                            ).show()
+                        }
+                    }.addOnFailureListener { e ->
+                        android.util.Log.e("UsersFragment", "Error getting location", e)
+                        try {
+                            // Gửi SOS không có vị trí
+                            val messageIds = bridgefyManager.sendSOSSignal()
+                            Snackbar.make(
+                                binding.root,
+                                "⚠️ Đã phát SOS nhưng không lấy được vị trí GPS",
+                                Snackbar.LENGTH_SHORT
+                            ).show()
+                        } catch (ex: Exception) {
+                            android.util.Log.e("UsersFragment", "Error sending SOS without location", ex)
+                        }
+                    }
+                } catch (e: SecurityException) {
+                    android.util.Log.e("UsersFragment", "Security exception getting location", e)
+                    try {
+                        val messageIds = bridgefyManager.sendSOSSignal()
+                    } catch (ex: Exception) {
+                        android.util.Log.e("UsersFragment", "Error sending SOS", ex)
+                    }
+                }
+            } else {
+                // Không có quyền location, gửi SOS không có vị trí
+                try {
+                    val messageIds = bridgefyManager.sendSOSSignal()
+                    if (messageIds.isEmpty()) {
+                        Snackbar.make(
+                            binding.root,
+                            "Không có thiết bị gần đây. Cần quyền vị trí để gửi vị trí GPS",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        Snackbar.make(
+                            binding.root,
+                            "⚠️ Đã phát SOS nhưng cần quyền vị trí để gửi GPS",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("UsersFragment", "Error sending SOS without permission", e)
+                    Snackbar.make(
+                        binding.root,
+                        "Lỗi khi gửi tín hiệu SOS",
+                        Snackbar.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("UsersFragment", "Error in sendSOSSignal", e)
+            Snackbar.make(
+                binding.root,
+                "Lỗi: ${e.message ?: "Không xác định"}",
+                Snackbar.LENGTH_SHORT
+            ).show()
+        }
+    }
+    
+    private fun checkLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
 
     override fun onDestroyView() {
         super.onDestroyView()
@@ -240,6 +429,11 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
     // Adapter for users list
     private class UsersAdapter : RecyclerView.Adapter<UsersAdapter.UserViewHolder>() {
         private val users = mutableListOf<User>()
+        private var onUserClickListener: ((User) -> Unit)? = null
+        
+        fun setOnUserClickListener(listener: (User) -> Unit) {
+            onUserClickListener = listener
+        }
         
         fun submitList(newUsers: List<User>) {
             users.clear()
@@ -249,8 +443,8 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
         
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UserViewHolder {
             val view = LayoutInflater.from(parent.context)
-                .inflate(android.R.layout.simple_list_item_2, parent, false)
-            return UserViewHolder(view)
+                .inflate(R.layout.item_user, parent, false)
+            return UserViewHolder(view, onUserClickListener)
         }
         
         override fun onBindViewHolder(holder: UserViewHolder, position: Int) {
@@ -260,15 +454,28 @@ class UsersFragment : Fragment(), BridgefyManager.BridgefyListener {
         
         override fun getItemCount() = users.size
         
-        class UserViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        class UserViewHolder(
+            itemView: View,
+            private val onUserClickListener: ((User) -> Unit)?
+        ) : RecyclerView.ViewHolder(itemView) {
+            private val textUserName = itemView.findViewById<TextView>(R.id.textUserName)
+            private val textUserStatus = itemView.findViewById<TextView>(R.id.textUserStatus)
+            private val textUserInitial = itemView.findViewById<TextView>(R.id.textUserInitial)
+            
             fun bind(user: User) {
-                val text1 = itemView.findViewById<android.widget.TextView>(android.R.id.text1)
-                val text2 = itemView.findViewById<android.widget.TextView>(android.R.id.text2)
+                // Hiển thị tên thân thiện thay vì userId
+                val displayName = user.getDisplayNameOrShortId()
+                textUserName?.text = displayName
+                textUserStatus?.text = "Đang online"
                 
-                text1?.text = "Người dùng: ${user.userId.take(8)}..."
-                text2?.text = "Đang online"
-                text1?.setTextColor(itemView.context.getColor(R.color.orange_primary))
-                text2?.setTextColor(itemView.context.getColor(R.color.nav_unselected))
+                // Lấy chữ cái đầu từ tên hiển thị
+                val initial = displayName.firstOrNull()?.uppercase() ?: "U"
+                textUserInitial?.text = initial
+                
+                // Set click listener on the entire item
+                itemView.setOnClickListener {
+                    onUserClickListener?.invoke(user)
+                }
             }
         }
     }

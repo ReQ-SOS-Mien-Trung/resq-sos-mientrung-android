@@ -27,7 +27,7 @@ import com.resq.resq_sos_mientrung_android.fragments.UsersFragment
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private var currentFragment: Fragment? = null
-    private var selectedTab = 0
+    private var selectedTab = -1 // Khởi tạo -1 để đảm bảo load lần đầu
     private var navBarView: View? = null
     private var selectedTabIndicator: View? = null
     private val animationDuration = 300L
@@ -35,6 +35,19 @@ class MainActivity : AppCompatActivity() {
     
     // Cache fragments to avoid recreating
     private val fragments = mutableMapOf<Int, Fragment>()
+    
+    // Flag để tránh multiple transactions đồng thời
+    private var isFragmentTransactionInProgress = false
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var pendingFragmentPosition: Int? = null
+    
+    // Tags cho mỗi fragment
+    private val fragmentTags = mapOf(
+        0 to "fragment_rescuers",
+        1 to "fragment_users",
+        2 to "fragment_chat",
+        3 to "fragment_map"
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,31 +85,19 @@ class MainActivity : AppCompatActivity() {
 
         tabRescuers.setOnClickListener { 
             performHapticFeedback()
-            loadFragment(0) 
+            loadFragmentSafely(0) 
         }
         tabUsers.setOnClickListener { 
             performHapticFeedback()
-            loadFragment(1) 
+            loadFragmentSafely(1) 
         }
         tabChat.setOnClickListener { 
             performHapticFeedback()
-            loadFragment(2) 
+            loadFragmentSafely(2) 
         }
         tabMap.setOnClickListener { 
             performHapticFeedback()
-            loadFragment(3) 
-        }
-    }
-    
-    private fun getFragment(position: Int): Fragment {
-        return fragments.getOrPut(position) {
-            when (position) {
-                0 -> RescuersFragment()
-                1 -> UsersFragment()
-                2 -> ChatFragment()
-                3 -> MapFragment()
-                else -> RescuersFragment()
-            }
+            loadFragmentSafely(3) 
         }
     }
 
@@ -124,40 +125,149 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadFragment(position: Int) {
+    /**
+     * Safe wrapper để load fragment, tránh multiple transactions đồng thời
+     */
+    private fun loadFragmentSafely(position: Int) {
+        // Nếu đang có transaction, lưu lại position để xử lý sau
+        if (isFragmentTransactionInProgress) {
+            pendingFragmentPosition = position
+            return
+        }
+        
+        // Nếu đang ở tab này rồi, không cần load lại
         if (selectedTab == position && currentFragment != null) {
             return
         }
+        
+        loadFragment(position)
+    }
+    
+    private fun loadFragment(position: Int) {
+        // Kiểm tra activity còn valid không
+        if (isFinishing || isDestroyed) {
+            return
+        }
 
-        val fragment = getFragment(position)
+        // Kiểm tra fragment manager còn valid không
+        if (supportFragmentManager.isDestroyed) {
+            return
+        }
+
+        val tag = fragmentTags[position] ?: return
+        val fragment = getOrCreateFragment(position, tag)
+
+        isFragmentTransactionInProgress = true
+        val previousTab = selectedTab
         selectedTab = position
         currentFragment = fragment
 
         try {
-            if (supportFragmentManager.isStateSaved) {
-                supportFragmentManager.beginTransaction()
-                    .replace(R.id.fragmentContainer, fragment)
-                    .commitAllowingStateLoss()
+            val transaction = supportFragmentManager.beginTransaction()
+            
+            // Hide tất cả các fragment khác đang hiển thị
+            for ((pos, fragTag) in fragmentTags) {
+                if (pos != position) {
+                    supportFragmentManager.findFragmentByTag(fragTag)?.let { frag ->
+                        if (frag.isAdded && !frag.isHidden) {
+                            transaction.hide(frag)
+                        }
+                    }
+                }
+            }
+            
+            // Show hoặc add fragment được chọn
+            if (fragment.isAdded) {
+                transaction.show(fragment)
             } else {
-                supportFragmentManager.beginTransaction()
-                    .replace(R.id.fragmentContainer, fragment)
-                    .commit()
+                transaction.add(R.id.fragmentContainer, fragment, tag)
             }
-        } catch (e: Exception) {
+            
+            // Commit transaction
+            if (!supportFragmentManager.isStateSaved) {
+                transaction.commitNow()
+                onFragmentTransactionComplete(position)
+            } else {
+                transaction.commitAllowingStateLoss()
+                handler.post {
+                    onFragmentTransactionComplete(position)
+                }
+            }
+        } catch (e: IllegalStateException) {
+            // Fragment manager đã bị destroy hoặc state saved
+            isFragmentTransactionInProgress = false
+            selectedTab = previousTab
             e.printStackTrace()
-            try {
-                supportFragmentManager.beginTransaction()
-                    .replace(R.id.fragmentContainer, fragment)
-                    .commitAllowingStateLoss()
-            } catch (e2: Exception) {
-                e2.printStackTrace()
+        } catch (e: Exception) {
+            isFragmentTransactionInProgress = false
+            selectedTab = previousTab
+            e.printStackTrace()
+        }
+    }
+    
+    private fun getOrCreateFragment(position: Int, tag: String): Fragment {
+        // Kiểm tra fragment đã tồn tại trong FragmentManager chưa
+        val existingFragment = supportFragmentManager.findFragmentByTag(tag)
+        if (existingFragment != null) {
+            fragments[position] = existingFragment
+            return existingFragment
+        }
+        
+        // Tạo mới nếu chưa có
+        return fragments.getOrPut(position) {
+            when (position) {
+                0 -> RescuersFragment()
+                1 -> UsersFragment()
+                2 -> ChatFragment()
+                3 -> MapFragment()
+                else -> RescuersFragment()
             }
         }
-
-        // Update navigation bar after layout is ready
-        navBarView?.post {
-            updateNavigationBar(position)
+    }
+    
+    private fun onFragmentTransactionComplete(position: Int) {
+        isFragmentTransactionInProgress = false
+        updateNavigationBarSafely(position)
+        
+        // Xử lý pending fragment nếu có
+        pendingFragmentPosition?.let { pendingPos ->
+            val pos = pendingPos
+            pendingFragmentPosition = null
+            if (pos != position) {
+                handler.post {
+                    loadFragmentSafely(pos)
+                }
+            }
         }
+    }
+    
+    private fun updateNavigationBarSafely(position: Int) {
+        if (isFinishing || isDestroyed) {
+            return
+        }
+        
+        navBarView?.post {
+            if (!isFinishing && !isDestroyed) {
+                updateNavigationBar(position)
+            }
+        }
+    }
+    
+    /**
+     * Navigate to Chat tab and set the selected user ID
+     * This method can be called from fragments to start a chat with a specific user
+     */
+    fun navigateToChatWithUser(userId: String, displayName: String = "") {
+        // Load Chat fragment (position 2)
+        loadFragmentSafely(2)
+        
+        // Set the selected user in ChatFragment after a short delay to ensure fragment is ready
+        handler.postDelayed({
+            if (!isFinishing && !isDestroyed) {
+                val chatFragment = fragments[2] as? ChatFragment
+                chatFragment?.setPrivateChatMode(userId, displayName)
+            }
+        }, 300)
     }
 
     private fun updateNavigationBar(selectedPosition: Int) {

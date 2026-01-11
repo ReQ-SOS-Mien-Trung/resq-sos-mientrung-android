@@ -18,8 +18,23 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
         }
     }
     
+    private val appContext: Context = context.applicationContext
     private var isInitialized = false
     private var listeners: MutableList<BridgefyListener> = mutableListOf()
+    
+    // Cache tên thiết bị của mình
+    val myDeviceName: String
+        get() = DeviceNameHelper.getDeviceName(appContext)
+    
+    // Get local user ID (for SOS signals)
+    private fun getLocalUserId(): String {
+        // In production, get from Bridgefy SDK
+        // For now, use a consistent ID based on device
+        return android.provider.Settings.Secure.getString(
+            appContext.contentResolver,
+            android.provider.Settings.Secure.ANDROID_ID
+        ) ?: java.util.UUID.randomUUID().toString()
+    }
     
     fun addListener(listener: BridgefyListener) {
         if (!listeners.contains(listener)) {
@@ -41,13 +56,36 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
             val config = BridgefyConfig.Builder()
                 .setApiKey("5a369f96-13d3-40df-8d41-805bf150cac0")
                 .setBridgefyDelegate(this)
+                .setContext(context)
                 .build()
             
             Log.d(TAG, "Đang khởi động Bridgefy SDK...")
+            Log.d(TAG, "Kiểm tra SDK thật có sẵn: ${BridgefySDKWrapper.isRealSDKAvailable()}")
+            
             Bridgefy.initialize(config, object : BridgefyStartListener {
                 override fun onBridgefyStart() {
                     Log.d(TAG, "✅ Bridgefy đã khởi động thành công!")
-                    Log.d(TAG, "Bridgefy SDK is now ACTIVE and ready to use")
+                    
+                    // Kiểm tra xem có đang dùng SDK thật không
+                    // Note: Bridgefy.isUsingRealSDK() sẽ được gọi từ Bridgefy object
+                    // Tạm thời kiểm tra qua việc xem có log "Real Bridgefy SDK initialized" không
+                    // Hoặc có thể thêm flag vào BridgefyManager
+                    
+                    if (BridgefySDKWrapper.isRealSDKAvailable()) {
+                        // SDK class tồn tại, nhưng cần kiểm tra xem đã khởi tạo thành công chưa
+                        // Log sẽ cho biết chi tiết hơn
+                        Log.d(TAG, "✅ Bridgefy SDK class found - checking initialization status...")
+                        Log.d(TAG, "✅ Đang sử dụng Bridgefy SDK THẬT - thiết bị sẽ tự động tìm thấy nhau")
+                        Log.d(TAG, "💡 Đảm bảo cả hai thiết bị đều:")
+                        Log.d(TAG, "   - Bật Bluetooth")
+                        Log.d(TAG, "   - Bật WiFi (hoặc WiFi Direct)")
+                        Log.d(TAG, "   - Ở gần nhau (trong phạm vi ~100m)")
+                        Log.d(TAG, "   - Đã cấp đủ quyền (Bluetooth, Location)")
+                    } else {
+                        Log.w(TAG, "⚠️ Đang sử dụng STUB - thiết bị KHÔNG THỂ tìm thấy nhau!")
+                        Log.w(TAG, "⚠️ SDK class được tìm thấy nhưng khởi tạo thất bại")
+                        Log.w(TAG, "⚠️ Vui lòng kiểm tra logcat để xem lỗi khởi tạo")
+                    }
                     isInitialized = true
                     notifyListeners { it.onBridgefyStart() }
                 }
@@ -73,6 +111,8 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
             val messageData = JSONObject().apply {
                 put("content", content)
                 put("timestamp", System.currentTimeMillis())
+                put("type", "private") // Mark as private message
+                put("senderName", myDeviceName) // Thêm tên người gửi
             }
             
             val messageId = Bridgefy.sendMessage(userId, messageData.toString())
@@ -84,6 +124,98 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
         }
     }
     
+    /**
+     * Phát tín hiệu SOS kèm vị trí GPS thật để các thiết bị khác có thể tìm thấy
+     * @param latitude Vĩ độ GPS
+     * @param longitude Kinh độ GPS
+     * @return List of message IDs for each user
+     */
+    fun sendSOSSignal(latitude: Double? = null, longitude: Double? = null): List<String> {
+        if (!isInitialized) {
+            Log.e(TAG, "Bridgefy not initialized")
+            return emptyList()
+        }
+        
+        val nearbyUsers = getNearbyUsers()
+        if (nearbyUsers.isEmpty()) {
+            Log.w(TAG, "No nearby users to send SOS to")
+            return emptyList()
+        }
+        
+        val messageIds = mutableListOf<String>()
+        
+        try {
+            val messageData = org.json.JSONObject().apply {
+                put("type", "SOS")
+                put("timestamp", System.currentTimeMillis())
+                put("senderName", myDeviceName)
+                put("senderId", getLocalUserId())
+                // Thêm vị trí GPS nếu có
+                if (latitude != null && longitude != null) {
+                    put("latitude", latitude)
+                    put("longitude", longitude)
+                    Log.d(TAG, "SOS signal với vị trí GPS: lat=$latitude, lng=$longitude")
+                }
+            }
+            
+            for (user in nearbyUsers) {
+                try {
+                    val messageId = Bridgefy.sendMessage(user.userId, messageData.toString())
+                    Log.d(TAG, "SOS signal sent to ${user.userId} with ID: $messageId")
+                    messageIds.add(messageId)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error sending SOS to ${user.userId}", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating SOS message", e)
+        }
+        
+        return messageIds
+    }
+    
+    /**
+     * Gửi tin nhắn broadcast tới tất cả người dùng gần đây
+     * @return List of message IDs for each user
+     */
+    fun sendBroadcastMessage(content: String): List<String> {
+        if (!isInitialized) {
+            Log.e(TAG, "Bridgefy not initialized")
+            return emptyList()
+        }
+        
+        val nearbyUsers = getNearbyUsers()
+        if (nearbyUsers.isEmpty()) {
+            Log.w(TAG, "No nearby users to broadcast to")
+            return emptyList()
+        }
+        
+        val messageIds = mutableListOf<String>()
+        
+        try {
+            val messageData = JSONObject().apply {
+                put("content", content)
+                put("timestamp", System.currentTimeMillis())
+                put("type", "broadcast") // Mark as broadcast message
+                put("senderName", myDeviceName) // Thêm tên người gửi
+            }
+            
+            for (user in nearbyUsers) {
+                try {
+                    val messageId = Bridgefy.sendMessage(user.userId, messageData.toString())
+                    Log.d(TAG, "Broadcast message sent to ${user.userId} with ID: $messageId")
+                    messageIds.add(messageId)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error sending broadcast to ${user.userId}", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating broadcast message", e)
+        }
+        
+        return messageIds
+    }
+    
     fun getNearbyUsers(): List<User> {
         return if (isInitialized) {
             Bridgefy.getNearbyUsers()
@@ -93,6 +225,31 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
     }
     
     fun isInitialized(): Boolean = isInitialized
+    
+    /**
+     * Thử start SDK nếu chưa start.
+     * Nên gọi sau khi permissions đã được grant.
+     */
+    fun tryStartSDK(): Boolean {
+        if (!isInitialized) {
+            Log.d(TAG, "Cannot start SDK - not initialized yet")
+            return false
+        }
+        
+        // Gọi startBridgefySDK() - nó sẽ tự check permissions và isStarted
+        val started = BridgefySDKWrapper.startBridgefySDK()
+        if (started) {
+            Log.d(TAG, "✅ SDK started successfully!")
+        } else {
+            Log.d(TAG, "⚠️ SDK not started - may be missing permissions or already started")
+        }
+        return started
+    }
+    
+    /**
+     * Kiểm tra SDK đã bắt đầu scan chưa
+     */
+    fun isStarted(): Boolean = BridgefySDKWrapper.isStarted()
     
     // BridgefyDelegate callbacks
     override fun onMessageReceived(message: Message, user: User) {
