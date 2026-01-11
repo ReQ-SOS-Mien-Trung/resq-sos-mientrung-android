@@ -1,11 +1,14 @@
 package com.resq.resq_sos_mientrung_android.bridgefy
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import androidx.core.content.ContextCompat
 import java.util.UUID
 
 // Wrapper classes for Bridgefy SDK
@@ -38,6 +41,7 @@ data class Message(val messageId: String, val content: String)
 // Helper object để lấy tên thiết bị
 object DeviceNameHelper {
     private var cachedDeviceName: String? = null
+    private val bluetoothDeviceCache = mutableMapOf<String, String>()
     
     fun getDeviceName(context: Context?): String {
         cachedDeviceName?.let { return it }
@@ -57,6 +61,137 @@ object DeviceNameHelper {
         }
         
         cachedDeviceName = name
+        return name
+    }
+    
+    /**
+     * Lấy tên Bluetooth của thiết bị từ userId (có thể là MAC address hoặc ID)
+     */
+    fun getBluetoothDeviceName(context: Context?, userId: String): String {
+        // Kiểm tra cache trước
+        bluetoothDeviceCache[userId]?.let { return it }
+        
+        val name = try {
+            if (context == null) {
+                return userId.take(12) // Fallback: hiển thị 12 ký tự đầu
+            }
+            
+            // Thử lấy từ BluetoothAdapter
+            val bluetoothAdapter = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    // Android 12+ cần permission
+                    val hasPermission = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.BLUETOOTH_CONNECT
+                    ) == PackageManager.PERMISSION_GRANTED
+                    
+                    if (hasPermission) {
+                        android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                    } else {
+                        null
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                }
+            } catch (e: Exception) {
+                Log.w("DeviceNameHelper", "Cannot get BluetoothAdapter", e)
+                null
+            }
+            
+            if (bluetoothAdapter != null) {
+                try {
+                    // Thử parse userId như MAC address
+                    val macAddress = if (userId.matches(Regex("([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})"))) {
+                        userId
+                    } else if (userId.length >= 12) {
+                        // Thử format lại nếu có thể
+                        val cleaned = userId.replace(":", "").replace("-", "")
+                        if (cleaned.length >= 12) {
+                            "${cleaned.substring(0, 2)}:${cleaned.substring(2, 4)}:${cleaned.substring(4, 6)}:${cleaned.substring(6, 8)}:${cleaned.substring(8, 10)}:${cleaned.substring(10, 12)}"
+                        } else {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                    
+                    if (macAddress != null) {
+                        val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            val hasPermission = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.BLUETOOTH_CONNECT
+                            ) == PackageManager.PERMISSION_GRANTED
+                            
+                            if (hasPermission) {
+                                bluetoothAdapter.getRemoteDevice(macAddress)
+                            } else {
+                                null
+                            }
+                        } else {
+                            @Suppress("DEPRECATION")
+                            bluetoothAdapter.getRemoteDevice(macAddress)
+                        }
+                        
+                        if (device != null) {
+                            val deviceName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                val hasPermission = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.BLUETOOTH_CONNECT
+                                ) == PackageManager.PERMISSION_GRANTED
+                                
+                                if (hasPermission) {
+                                    device.name
+                                } else {
+                                    null
+                                }
+                            } else {
+                                @Suppress("DEPRECATION")
+                                device.name
+                            }
+                            
+                            if (!deviceName.isNullOrBlank()) {
+                                bluetoothDeviceCache[userId] = deviceName
+                                return deviceName
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w("DeviceNameHelper", "Error getting device name for $userId", e)
+                }
+            }
+            
+            // Fallback: tạo tên thân thiện từ userId
+            // Nếu userId trông giống MAC address, chỉ lấy phần cuối
+            val friendlyName = if (userId.matches(Regex("([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})"))) {
+                // Lấy 2 octet cuối của MAC address
+                val parts = userId.split(":", "-")
+                if (parts.size >= 2) {
+                    "Thiết bị ${parts[parts.size - 2]}${parts[parts.size - 1]}"
+                } else {
+                    "Thiết bị ${userId.takeLast(5)}"
+                }
+            } else if (userId.length > 12) {
+                // Nếu là UUID hoặc ID dài, lấy phần cuối
+                "Thiết bị ${userId.takeLast(8)}"
+            } else if (userId.length > 6) {
+                "Thiết bị ${userId.takeLast(6)}"
+            } else {
+                "Thiết bị $userId"
+            }
+            
+            friendlyName
+        } catch (e: Exception) {
+            Log.e("DeviceNameHelper", "Error in getBluetoothDeviceName", e)
+            // Fallback đơn giản
+            if (userId.length > 8) {
+                "Thiết bị ${userId.takeLast(8)}"
+            } else {
+                "Thiết bị $userId"
+            }
+        }
+        
+        bluetoothDeviceCache[userId] = name
         return name
     }
 }

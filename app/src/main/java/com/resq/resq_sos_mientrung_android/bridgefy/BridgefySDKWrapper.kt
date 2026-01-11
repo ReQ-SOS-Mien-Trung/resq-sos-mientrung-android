@@ -21,6 +21,14 @@ object BridgefySDKWrapper {
     private var appContext: Context? = null
     
     /**
+     * Helper function để tạo User với displayName từ Bluetooth
+     */
+    private fun createUserWithBluetoothName(userId: String): User {
+        val displayName = DeviceNameHelper.getBluetoothDeviceName(appContext, userId)
+        return User(userId, displayName)
+    }
+    
+    /**
      * Kiểm tra permissions cần thiết cho Bluetooth trên Android 12+
      */
     private fun hasBluetoothPermissions(): Boolean {
@@ -1646,7 +1654,7 @@ object BridgefySDKWrapper {
                                 val messageId = extractMessageId(message)
                                 val content = extractMessageContent(message)
                                 Log.d(TAG, "📨 Extracted from single arg - messageId: $messageId, content: $content, userId: $userId")
-                                delegate.onMessageReceived(Message(messageId, content), User(userId))
+                                delegate.onMessageReceived(Message(messageId, content), createUserWithBluetoothName(userId))
                                 true
                             } else {
                                 false
@@ -1695,12 +1703,12 @@ object BridgefySDKWrapper {
                 "onUserFound" -> {
                     val user = args?.get(0)
                     val userId = extractUserId(user)
-                    delegate.onUserFound(User(userId))
+                    delegate.onUserFound(createUserWithBluetoothName(userId))
                 }
                 "onUserLost" -> {
                     val user = args?.get(0)
                     val userId = extractUserId(user)
-                    delegate.onUserLost(User(userId))
+                    delegate.onUserLost(createUserWithBluetoothName(userId))
                 }
                 "onProgressOfSend" -> {
                     // Callback để theo dõi tiến trình gửi tin nhắn
@@ -1728,7 +1736,7 @@ object BridgefySDKWrapper {
                                 val userId = extractUserId(user)
                                 Log.d(TAG, "⚠️ Extracted - messageId: $messageId, content: $content, userId: $userId")
                                 if (messageId.isNotEmpty() || content.isNotEmpty()) {
-                                    delegate.onMessageReceived(Message(messageId, content), User(userId))
+                                    delegate.onMessageReceived(Message(messageId, content), createUserWithBluetoothName(userId))
                                 }
                             } catch (e: Exception) {
                                 Log.e(TAG, "Error handling potential receive callback: ${e.message}")
@@ -1782,7 +1790,7 @@ object BridgefySDKWrapper {
                                 val messageId = extractMessageId(message)
                                 val content = extractMessageContent(message)
                                 Log.d(TAG, "📨 Extracted from single arg - messageId: $messageId, content: $content, userId: $userId")
-                                delegate.onMessageReceived(Message(messageId, content), User(userId))
+                                delegate.onMessageReceived(Message(messageId, content), createUserWithBluetoothName(userId))
                                 true
                             } else {
                                 false
@@ -2101,7 +2109,7 @@ object BridgefySDKWrapper {
             for (peer in peers) {
                 if (peer != null) {
                     val peerId = peer.toString()
-                    users.add(User(peerId))
+                    users.add(createUserWithBluetoothName(peerId))
                     Log.d(TAG, "Added peer: $peerId")
                 }
             }

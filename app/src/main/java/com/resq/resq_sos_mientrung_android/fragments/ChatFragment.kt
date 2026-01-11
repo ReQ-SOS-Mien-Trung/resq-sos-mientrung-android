@@ -4,8 +4,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -31,6 +34,13 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
     
     // Cache mapping userId -> displayName
     private val userDisplayNames = mutableMapOf<String, String>()
+    
+    // Keyboard listener để scroll khi bàn phím hiện
+    private var keyboardLayoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
+    
+    // Window insets listeners để có thể remove khi destroy
+    private var inputInsetsListener: androidx.core.view.OnApplyWindowInsetsListener? = null
+    private var recyclerInsetsListener: androidx.core.view.OnApplyWindowInsetsListener? = null
     
     data class ChatMessage(
         val id: String,
@@ -60,6 +70,8 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
         setupRecyclerView()
         setupSendButton()
         setupChatModeUI()
+        setupKeyboardListener()
+        setupWindowInsets()
         updateBridgefyStatus()
         
         // Periodically check status (every 500ms) until initialized
@@ -184,6 +196,102 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                 sendPrivateMessage(messageText)
             }
         }
+    }
+    
+    private fun setupKeyboardListener() {
+        // Scroll to bottom when keyboard appears or when EditText gets focus
+        binding.editTextMessage.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                // Delay scroll to ensure layout has adjusted
+                binding.recyclerViewMessages.postDelayed({
+                    scrollToBottom()
+                }, 300)
+            }
+        }
+        
+        // Also scroll when user starts typing
+        binding.editTextMessage.setOnClickListener {
+            binding.recyclerViewMessages.postDelayed({
+                scrollToBottom()
+            }, 300)
+        }
+        
+        // Listen for window insets changes (keyboard show/hide)
+        keyboardLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+            val rootView = binding.root.rootView
+            val rootHeight = rootView.height
+            val viewHeight = binding.root.height
+            val heightDiff = rootHeight - viewHeight
+            
+            // If height difference is more than 200dp, keyboard is probably visible
+            if (heightDiff > 200) {
+                // Bàn phím hiện, scroll đến cuối và đảm bảo input visible
+                binding.recyclerViewMessages.postDelayed({
+                    scrollToBottom()
+                    // Đảm bảo EditText được scroll vào view
+                    binding.editTextMessage.requestFocus()
+                }, 200)
+            }
+        }
+        binding.root.viewTreeObserver.addOnGlobalLayoutListener(keyboardLayoutListener)
+    }
+    
+    private fun scrollToBottom() {
+        if (messages.isNotEmpty()) {
+            binding.recyclerViewMessages.scrollToPosition(messages.size - 1)
+        }
+    }
+    
+    private fun setupWindowInsets() {
+        // Xử lý window insets để đảm bảo input area không bị che nhưng vẫn sát bàn phím
+        inputInsetsListener = androidx.core.view.OnApplyWindowInsetsListener { v, insets ->
+            if (_binding == null) return@OnApplyWindowInsetsListener insets
+            
+            val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+            val layoutParams = v.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+            
+            if (imeInsets.bottom > 0) {
+                // Bàn phím hiện - chỉ thêm một khoảng cách nhỏ (4dp) để không bị che nhưng vẫn sát
+                val smallMargin = (4 * resources.displayMetrics.density).toInt()
+                layoutParams?.bottomMargin = smallMargin
+                v.layoutParams = layoutParams
+                
+                // Scroll đến cuối khi bàn phím hiện - kiểm tra binding trước
+                _binding?.recyclerViewMessages?.postDelayed({
+                    if (_binding != null) {
+                        scrollToBottom()
+                    }
+                }, 200)
+            } else {
+                // Bàn phím ẩn - reset margin về 0
+                layoutParams?.bottomMargin = 0
+                v.layoutParams = layoutParams
+            }
+            
+            insets
+        }
+        
+        ViewCompat.setOnApplyWindowInsetsListener(binding.layoutMessageInput, inputInsetsListener)
+        
+        // Đảm bảo RecyclerView scroll khi bàn phím hiện
+        recyclerInsetsListener = androidx.core.view.OnApplyWindowInsetsListener { v, insets ->
+            if (_binding == null) return@OnApplyWindowInsetsListener insets
+            
+            val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+            
+            if (imeInsets.bottom > 0) {
+                // Bàn phím hiện, scroll đến cuối - kiểm tra binding trước
+                _binding?.recyclerViewMessages?.postDelayed({
+                    if (_binding != null) {
+                        scrollToBottom()
+                    }
+                }, 200)
+            }
+            
+            insets
+        }
+        
+        ViewCompat.setOnApplyWindowInsetsListener(binding.recyclerViewMessages, recyclerInsetsListener)
     }
     
     private fun sendBroadcastMessage(messageText: String) {
@@ -364,20 +472,44 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
         activity?.runOnUiThread {
             if (!isAdded || _binding == null) return@runOnUiThread
             try {
+                // Thử parse JSON - hỗ trợ cả format Android và iPhone
                 val messageData = JSONObject(message.content)
-                val content = messageData.getString("content")
-                val timestamp = messageData.optLong("timestamp", System.currentTimeMillis())
+                
+                // Hỗ trợ cả "text" (iPhone) và "content" (Android)
+                val content = when {
+                    messageData.has("text") -> messageData.getString("text")
+                    messageData.has("content") -> messageData.getString("content")
+                    else -> message.content // Fallback về raw content nếu không có cả hai
+                }
+                
+                // Lấy timestamp - hỗ trợ cả số nguyên và số thập phân
+                val timestamp = try {
+                    val tsValue = messageData.opt("timestamp")
+                    when (tsValue) {
+                        is Number -> tsValue.toLong()
+                        is String -> tsValue.toLongOrNull() ?: System.currentTimeMillis()
+                        else -> System.currentTimeMillis()
+                    }
+                } catch (e: Exception) {
+                    System.currentTimeMillis()
+                }
+                
                 val type = messageData.optString("type", "private")
-                val senderName = messageData.optString("senderName", "")
+                
+                // Lấy senderName - ưu tiên từ JSON, sau đó từ user object
+                val senderName = messageData.optString("senderName", "").ifBlank {
+                    messageData.optString("name", "") // Một số format có thể dùng "name"
+                }
                 
                 // Lưu mapping userId -> displayName
                 if (senderName.isNotBlank()) {
                     userDisplayNames[user.userId] = senderName
                 }
                 
+                // Xác định displayName: ưu tiên senderName từ JSON, sau đó user.displayName, cuối cùng là userId rút gọn
                 val displayName = senderName.ifBlank { 
                     user.displayName.ifBlank { 
-                        if (user.userId.length > 8) "${user.userId.take(8)}..." else user.userId
+                        user.getDisplayNameOrShortId()
                     }
                 }
                 
@@ -402,11 +534,126 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                         Toast.LENGTH_SHORT
                     ).show()
                 }
-            } catch (e: Exception) {
-                // If not JSON, treat as plain text
-                val displayName = user.displayName.ifBlank { 
-                    if (user.userId.length > 8) "${user.userId.take(8)}..." else user.userId
+            } catch (e: org.json.JSONException) {
+                // Nếu không parse được JSON, có thể là:
+                // 1. JSON string bị escape
+                // 2. Plain text message
+                // 3. JSON string trong string (double encoded)
+                android.util.Log.w("ChatFragment", "Không parse được JSON, thử các cách khác: ${e.message}")
+                
+                var parsed = false
+                
+                // Thử 1: Kiểm tra xem có phải là JSON string bị escape không
+                if (message.content.trim().startsWith("{") && message.content.trim().endsWith("}")) {
+                    try {
+                        // Có thể là JSON nhưng có vấn đề với format, thử parse lại với trim
+                        val trimmed = message.content.trim()
+                        val messageData = JSONObject(trimmed)
+                        val content = when {
+                            messageData.has("text") -> messageData.getString("text")
+                            messageData.has("content") -> messageData.getString("content")
+                            else -> trimmed
+                        }
+                        val senderName = messageData.optString("senderName", "")
+                        
+                        if (senderName.isNotBlank()) {
+                            userDisplayNames[user.userId] = senderName
+                        }
+                        
+                        val displayName = senderName.ifBlank { 
+                            user.getDisplayNameOrShortId()
+                        }
+                        
+                        val timestamp = try {
+                            messageData.opt("timestamp")?.let {
+                                if (it is Number) it.toLong() else System.currentTimeMillis()
+                            } ?: System.currentTimeMillis()
+                        } catch (e: Exception) {
+                            System.currentTimeMillis()
+                        }
+                        
+                        val chatMessage = ChatMessage(
+                            id = message.messageId,
+                            content = content,
+                            userId = user.userId,
+                            senderName = displayName,
+                            timestamp = timestamp,
+                            isSent = false,
+                            isBroadcast = messageData.optString("type", "") == "broadcast"
+                        )
+                        
+                        messages.add(chatMessage)
+                        updateMessagesList()
+                        parsed = true
+                    } catch (e2: Exception) {
+                        android.util.Log.w("ChatFragment", "Không thể parse JSON sau khi trim: ${e2.message}")
+                    }
                 }
+                
+                // Thử 2: Nếu vẫn chưa parse được, kiểm tra xem có phải là JSON string trong string không
+                if (!parsed && message.content.contains("\\\"")) {
+                    try {
+                        // Unescape JSON string
+                        val unescaped = message.content
+                            .replace("\\\"", "\"")
+                            .replace("\\\\", "\\")
+                            .trim()
+                        
+                        if (unescaped.startsWith("{") && unescaped.endsWith("}")) {
+                            val messageData = JSONObject(unescaped)
+                            val content = when {
+                                messageData.has("text") -> messageData.getString("text")
+                                messageData.has("content") -> messageData.getString("content")
+                                else -> unescaped
+                            }
+                            val senderName = messageData.optString("senderName", "")
+                            
+                            if (senderName.isNotBlank()) {
+                                userDisplayNames[user.userId] = senderName
+                            }
+                            
+                            val displayName = senderName.ifBlank { 
+                                user.getDisplayNameOrShortId()
+                            }
+                            
+                            val chatMessage = ChatMessage(
+                                id = message.messageId,
+                                content = content,
+                                userId = user.userId,
+                                senderName = displayName,
+                                timestamp = System.currentTimeMillis(),
+                                isSent = false,
+                                isBroadcast = messageData.optString("type", "") == "broadcast"
+                            )
+                            
+                            messages.add(chatMessage)
+                            updateMessagesList()
+                            parsed = true
+                        }
+                    } catch (e2: Exception) {
+                        android.util.Log.w("ChatFragment", "Không thể parse JSON sau khi unescape: ${e2.message}")
+                    }
+                }
+                
+                // Nếu vẫn không parse được, treat as plain text
+                if (!parsed) {
+                    val displayName = user.getDisplayNameOrShortId()
+                    val chatMessage = ChatMessage(
+                        id = message.messageId,
+                        content = message.content,
+                        userId = user.userId,
+                        senderName = displayName,
+                        timestamp = System.currentTimeMillis(),
+                        isSent = false,
+                        isBroadcast = false
+                    )
+                    messages.add(chatMessage)
+                    updateMessagesList()
+                }
+            } catch (e: Exception) {
+                // Nếu có lỗi khác, log và xử lý như plain text
+                android.util.Log.e("ChatFragment", "Lỗi khi xử lý tin nhắn: ${e.message}", e)
+                val displayName = user.getDisplayNameOrShortId()
                 val chatMessage = ChatMessage(
                     id = message.messageId,
                     content = message.content,
@@ -445,6 +692,42 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
     override fun onDestroyView() {
         super.onDestroyView()
         bridgefyManager.removeListener(this)
+        
+        // Remove keyboard listener to avoid memory leak
+        keyboardLayoutListener?.let {
+            if (_binding != null) {
+                try {
+                    binding.root.viewTreeObserver.removeOnGlobalLayoutListener(it)
+                } catch (e: Exception) {
+                    // ViewTreeObserver may have been destroyed, ignore
+                }
+            }
+        }
+        keyboardLayoutListener = null
+        
+        // Remove window insets listeners
+        inputInsetsListener?.let {
+            try {
+                if (_binding != null) {
+                    ViewCompat.setOnApplyWindowInsetsListener(binding.layoutMessageInput, null)
+                }
+            } catch (e: Exception) {
+                // Ignore if view is already destroyed
+            }
+        }
+        inputInsetsListener = null
+        
+        recyclerInsetsListener?.let {
+            try {
+                if (_binding != null) {
+                    ViewCompat.setOnApplyWindowInsetsListener(binding.recyclerViewMessages, null)
+                }
+            } catch (e: Exception) {
+                // Ignore if view is already destroyed
+            }
+        }
+        recyclerInsetsListener = null
+        
         _binding = null
     }
     
