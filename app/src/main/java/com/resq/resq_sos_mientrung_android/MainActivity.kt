@@ -348,8 +348,17 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            // Calculate target position - both indicator and tabs are in the same FrameLayout
-            val targetX = targetTab.left.toFloat()
+            // Calculate target position relative to the FrameLayout parent
+            // targetTab.left is relative to LinearLayout, we need position relative to FrameLayout
+            val parentFrameLayout = indicator.parent as? android.view.ViewGroup ?: return
+            val linearLayout = targetTab.parent as? android.view.ViewGroup ?: return
+            
+            // Get tab position relative to LinearLayout
+            val tabLeftInLinearLayout = targetTab.left.toFloat()
+            // Get LinearLayout position relative to FrameLayout
+            val linearLayoutLeftInFrameLayout = linearLayout.left.toFloat()
+            // Calculate final position relative to FrameLayout
+            val targetX = tabLeftInLinearLayout + linearLayoutLeftInFrameLayout
             val targetWidth = targetTab.width.toFloat()
 
             // Initialize indicator position if first time
