@@ -1,102 +1,68 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/navBarCard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="16dp"
-    app:cardCornerRadius="28dp"
-    app:cardElevation="12dp"
-    app:cardBackgroundColor="@color/nav_background">
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="16dp">
 
-    <FrameLayout
-        android:layout_width="match_parent"
+    <!-- Main Navigation Bar -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/navBarCard"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:padding="8dp">
-
-        <!-- Animated Background Indicator -->
-        <View
-            android:id="@+id/selectedTabIndicator"
-            android:layout_width="0dp"
-            android:layout_height="56dp"
-            android:background="@drawable/nav_tab_background"
-            android:alpha="0.0"
-            android:visibility="invisible" />
+        android:layout_weight="1"
+        android:layout_marginEnd="12dp"
+        app:cardCornerRadius="32dp"
+        app:cardElevation="8dp"
+        app:cardBackgroundColor="@color/nav_bar_dark">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center">
+            android:gravity="center"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
 
-            <!-- Rescuers Tab -->
+            <!-- Home Tab -->
             <FrameLayout
-                android:id="@+id/tabRescuers"
+                android:id="@+id/tabHome"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:clickable="true"
                 android:focusable="true">
 
-                <LinearLayout
+                <FrameLayout
+                    android:id="@+id/tabHomeContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="12dp">
+                    android:layout_gravity="center">
+
+                    <View
+                        android:id="@+id/tabHomePill"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="4dp"
+                        android:background="@drawable/nav_pill_background"
+                        android:visibility="invisible" />
 
                     <ImageView
-                        android:id="@+id/iconRescuers"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_rescuers"
-                        android:tint="@color/nav_selected" />
-
-                    <TextView
-                        android:id="@+id/textRescuersTab"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Rescuers"
-                        android:textSize="12sp"
-                        android:textColor="@color/nav_selected"
-                        android:layout_marginTop="4dp"
-                        android:fontFamily="sans-serif-medium" />
-                </LinearLayout>
-            </FrameLayout>
-
-            <!-- Users Tab -->
-            <FrameLayout
-                android:id="@+id/tabUsers"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:clickable="true"
-                android:focusable="true">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="12dp">
-
-                    <ImageView
-                        android:id="@+id/iconUsers"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_users"
-                        android:tint="@color/nav_unselected" />
-
-                    <TextView
-                        android:id="@+id/textUsersTab"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Users"
-                        android:textSize="12sp"
-                        android:textColor="@color/nav_unselected"
-                        android:layout_marginTop="4dp"
-                        android:fontFamily="sans-serif-medium" />
-                </LinearLayout>
+                        android:id="@+id/iconHome"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_gravity="center"
+                        android:padding="2dp"
+                        android:src="@drawable/ic_home"
+                        app:tint="@color/nav_icon_unselected" />
+                </FrameLayout>
             </FrameLayout>
 
             <!-- Chat Tab -->
@@ -108,68 +74,124 @@
                 android:clickable="true"
                 android:focusable="true">
 
-                <LinearLayout
+                <FrameLayout
+                    android:id="@+id/tabChatContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="12dp">
+                    android:layout_gravity="center">
+
+                    <View
+                        android:id="@+id/tabChatPill"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="4dp"
+                        android:background="@drawable/nav_pill_background"
+                        android:visibility="invisible" />
 
                     <ImageView
                         android:id="@+id/iconChat"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_gravity="center"
+                        android:padding="2dp"
                         android:src="@drawable/ic_chat"
-                        android:tint="@color/nav_unselected" />
-
-                    <TextView
-                        android:id="@+id/textChatTab"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Chat"
-                        android:textSize="12sp"
-                        android:textColor="@color/nav_unselected"
-                        android:layout_marginTop="4dp"
-                        android:fontFamily="sans-serif-medium" />
-                </LinearLayout>
+                        app:tint="@color/nav_icon_unselected" />
+                </FrameLayout>
             </FrameLayout>
 
-            <!-- Map Tab -->
+            <!-- Users Tab -->
             <FrameLayout
-                android:id="@+id/tabMap"
+                android:id="@+id/tabUsers"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:clickable="true"
                 android:focusable="true">
 
-                <LinearLayout
+                <FrameLayout
+                    android:id="@+id/tabUsersContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="12dp">
+                    android:layout_gravity="center">
+
+                    <View
+                        android:id="@+id/tabUsersPill"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="4dp"
+                        android:background="@drawable/nav_pill_background"
+                        android:visibility="invisible" />
 
                     <ImageView
-                        android:id="@+id/iconMap"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_map"
-                        android:tint="@color/nav_unselected" />
+                        android:id="@+id/iconUsers"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_gravity="center"
+                        android:padding="2dp"
+                        android:src="@drawable/ic_users"
+                        app:tint="@color/nav_icon_unselected" />
+                </FrameLayout>
+            </FrameLayout>
 
-                    <TextView
-                        android:id="@+id/textMapTab"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Map"
-                        android:textSize="12sp"
-                        android:textColor="@color/nav_unselected"
-                        android:layout_marginTop="4dp"
-                        android:fontFamily="sans-serif-medium" />
-                </LinearLayout>
+            <!-- More Tab (Rescuers) -->
+            <FrameLayout
+                android:id="@+id/tabRescuers"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:clickable="true"
+                android:focusable="true">
+
+                <FrameLayout
+                    android:id="@+id/tabRescuersContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center">
+
+                    <View
+                        android:id="@+id/tabRescuersPill"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="4dp"
+                        android:background="@drawable/nav_pill_background"
+                        android:visibility="invisible" />
+
+                    <ImageView
+                        android:id="@+id/iconRescuers"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_gravity="center"
+                        android:padding="2dp"
+                        android:src="@drawable/ic_more"
+                        app:tint="@color/nav_icon_unselected" />
+                </FrameLayout>
             </FrameLayout>
 
         </LinearLayout>
-    </FrameLayout>
+    </com.google.android.material.card.MaterialCardView>
 
-</com.google.android.material.card.MaterialCardView>
+    <!-- Map FAB (Floating Action Button) -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/tabMap"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="8dp"
+        app:cardBackgroundColor="@color/nav_fab_bg"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:id="@+id/iconMap"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_map"
+            app:tint="@color/white" />
+
+    </com.google.android.material.card.MaterialCardView>
+
+</LinearLayout>

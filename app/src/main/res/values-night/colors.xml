@@ -11,27 +11,56 @@
     <color name="orange_accent">#FF8C42</color>
     
     <!-- Dark backgrounds - using true black (#000000) for maximum battery savings on OLED screens -->
-    <color name="orange_background">#FF000000</color>
-    <color name="nav_background">#FF121212</color>
+    <color name="orange_background">#000000</color>
+    <color name="nav_background">#1C1C1E</color>
     
     <!-- Navigation colors for dark mode -->
     <color name="nav_selected">#FF6B35</color>
-    <color name="nav_unselected">#B3FFFFFF</color>
+    <color name="nav_unselected">#8E8E93</color>
     <color name="nav_indicator_background">#20FF6B35</color>
+    
+    <!-- Orange floating nav bar colors - Dark Mode -->
+    <color name="nav_bar_dark">#1C1C1E</color>
+    <color name="nav_pill_selected">#FF6B35</color>
+    <color name="nav_icon_selected">#FFFFFF</color>
+    <color name="nav_icon_unselected">#8E8E93</color>
+    <color name="nav_fab_bg">#FF6B35</color>
     
     <!-- Message colors for dark mode -->
     <color name="message_text_received">#FFFFFFFF</color>
     <color name="message_text_sent">#FFFFFFFF</color>
-    <color name="message_time_received">#B3FFFFFF</color>
-    <color name="message_bubble_received_bg">#FF1E1E1E</color>
-    <color name="message_bubble_received_stroke">#33FFFFFF</color>
-    <color name="message_input_bg">#FF1E1E1E</color>
-    <color name="message_input_stroke">#33FFFFFF</color>
+    <color name="message_time_received">#8E8E93</color>
+    <color name="message_bubble_received_bg">#1C1C1E</color>
+    <color name="message_bubble_received_stroke">#38383A</color>
+    <color name="message_input_bg">#1C1C1E</color>
+    <color name="message_input_stroke">#38383A</color>
     <color name="message_input_text">#FFFFFFFF</color>
-    <color name="message_input_hint">#80FFFFFF</color>
+    <color name="message_input_hint">#8E8E93</color>
     
     <!-- UI element colors for dark mode -->
-    <color name="chat_mode_bg">#FF1E1E1E</color>
-    <color name="chat_mode_stroke">#33FFFFFF</color>
-    <color name="status_container_bg">#FF1E1E1E</color>
+    <color name="chat_mode_bg">#2C2C2E</color>
+    <color name="chat_mode_stroke">#38383A</color>
+    <color name="status_container_bg">#2C2C2E</color>
+    
+    <!-- Home screen colors - Dark Mode -->
+    <color name="home_background">#000000</color>
+    <color name="home_text_primary">#FFFFFF</color>
+    <color name="home_text_secondary">#8E8E93</color>
+    <color name="weather_icon">#FF6B35</color>
+    <color name="notification_icon">#FF6B35</color>
+    <color name="notification_button">#FF6B35</color>
+    <color name="card_background">#1C1C1E</color>
+    <color name="card_icon_red">#FF6B35</color>
+    <color name="card_icon_grey">#8E8E93</color>
+    <color name="card_icon_orange">#FF9F0A</color>
+    <color name="card_icon_green">#30D158</color>
+    <color name="card_icon_blue">#0A84FF</color>
+    <color name="card_text">#FFFFFF</color>
+    <color name="card_stroke">#38383A</color>
+    
+    <!-- Bottom sheet colors -->
+    <color name="bottom_sheet_bg">#1C1C1E</color>
+    <color name="bottom_sheet_handle">#48484A</color>
+    <color name="bottom_sheet_text">#FFFFFF</color>
+    <color name="bottom_sheet_icon">#FF6B35</color>
 </resources>
