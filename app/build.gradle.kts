@@ -21,16 +21,21 @@ android {
         // Fix for AAR metadata issues
         multiDexEnabled = true
         
-        // Load Gemini API key from local.properties (not committed to Git)
+        // Load API keys from local.properties (not committed to Git)
         val localPropertiesFile = rootProject.file("local.properties")
-        val geminiApiKey = if (localPropertiesFile.exists()) {
-            val properties = Properties()
-            localPropertiesFile.inputStream().use { properties.load(it) }
-            properties.getProperty("GEMINI_API_KEY", "") ?: ""
+        val properties = if (localPropertiesFile.exists()) {
+            val props = Properties()
+            localPropertiesFile.inputStream().use { props.load(it) }
+            props
         } else {
-            ""
+            Properties()
         }
+        
+        val geminiApiKey = properties.getProperty("GEMINI_API_KEY", "") ?: ""
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        
+        val weatherApiKey = properties.getProperty("WEATHER_API_KEY", "") ?: ""
+        buildConfigField("String", "WEATHER_API_KEY", "\"$weatherApiKey\"")
         
         // Support for 16 KB page size devices (Android 15+)
         // This helps with compatibility warning for native libraries
@@ -105,8 +110,15 @@ dependencies {
     // Gemini API
     implementation(libs.google.generative.ai)
     
+    // Weather API
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.gson)
+    implementation(libs.gson)
+    implementation(libs.okhttp)
+    
     // Coroutines for async operations
     implementation(libs.kotlinx.coroutines.android)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
     
     coreLibraryDesugaring(libs.androidx.desugar.jdk.libs)
     
