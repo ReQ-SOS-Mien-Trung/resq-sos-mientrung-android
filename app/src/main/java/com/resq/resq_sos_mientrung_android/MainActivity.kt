@@ -12,6 +12,7 @@ import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.widget.ImageView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
@@ -21,6 +22,7 @@ import androidx.fragment.app.Fragment
 import com.resq.resq_sos_mientrung_android.databinding.ActivityMainBinding
 import com.resq.resq_sos_mientrung_android.bridgefy.BridgefyManager
 import com.resq.resq_sos_mientrung_android.dialogs.MoreMenuBottomSheet
+import com.resq.resq_sos_mientrung_android.fragments.AIChatbotFragment
 import com.resq.resq_sos_mientrung_android.fragments.ChatFragment
 import com.resq.resq_sos_mientrung_android.fragments.HomeFragment
 import com.resq.resq_sos_mientrung_android.fragments.MapFragment
@@ -80,6 +82,27 @@ class MainActivity : AppCompatActivity() {
             // Load default fragment (Home) after layout is ready
             loadFragment(0)
         }
+        
+        // Setup back press handler
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val aiChatbotFragment = supportFragmentManager.findFragmentByTag("fragment_ai_chatbot")
+                if (aiChatbotFragment != null && aiChatbotFragment.isVisible) {
+                    supportFragmentManager.popBackStack()
+                    // Restore the previous tab
+                    if (selectedTab >= 0) {
+                        loadFragmentSafely(selectedTab)
+                    } else {
+                        loadFragmentSafely(0) // Default to home
+                    }
+                } else {
+                    // Default back behavior
+                    if (!supportFragmentManager.popBackStackImmediate()) {
+                        finish()
+                    }
+                }
+            }
+        })
     }
 
     private fun setupNavigationBar() {
@@ -125,9 +148,9 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this@MainActivity, "Tính năng Tin tức đang phát triển", Toast.LENGTH_SHORT).show()
             }
 
-            override fun onGuideClick() {
-                // Mở hướng dẫn sử dụng
-                Toast.makeText(this@MainActivity, "Tính năng Hướng dẫn đang phát triển", Toast.LENGTH_SHORT).show()
+            override fun onAIChatbotClick() {
+                // Mở Chat Bot AI
+                showAIChatbotFragment()
             }
 
             override fun onSettingsClick() {
@@ -434,4 +457,18 @@ class MainActivity : AppCompatActivity() {
         }
         animator.start()
     }
+    
+    private fun showAIChatbotFragment() {
+        try {
+            val aiChatbotFragment = AIChatbotFragment()
+            val transaction = supportFragmentManager.beginTransaction()
+            transaction.replace(R.id.fragmentContainer, aiChatbotFragment, "fragment_ai_chatbot")
+            transaction.addToBackStack("ai_chatbot")
+            transaction.commit()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Không thể mở Chat Bot AI", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
 }

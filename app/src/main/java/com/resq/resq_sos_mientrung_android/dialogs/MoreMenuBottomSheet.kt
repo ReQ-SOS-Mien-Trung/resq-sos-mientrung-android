@@ -14,7 +14,7 @@ class MoreMenuBottomSheet : BottomSheetDialogFragment() {
     interface OnMenuItemClickListener {
         fun onRescuersClick()
         fun onNewsClick()
-        fun onGuideClick()
+        fun onAIChatbotClick()
         fun onSettingsClick()
         fun onAboutClick()
     }
@@ -50,9 +50,9 @@ class MoreMenuBottomSheet : BottomSheetDialogFragment() {
             dismiss()
         }
 
-        // Menu: Hướng dẫn sử dụng
-        view.findViewById<LinearLayout>(R.id.menuGuide)?.setOnClickListener {
-            listener?.onGuideClick()
+        // Menu: Chat Bot AI
+        view.findViewById<LinearLayout>(R.id.menuAIChatbot)?.setOnClickListener {
+            listener?.onAIChatbotClick()
             dismiss()
         }
 

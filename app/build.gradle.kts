@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -18,6 +20,17 @@ android {
         
         // Fix for AAR metadata issues
         multiDexEnabled = true
+        
+        // Load Gemini API key from local.properties (not committed to Git)
+        val localPropertiesFile = rootProject.file("local.properties")
+        val geminiApiKey = if (localPropertiesFile.exists()) {
+            val properties = Properties()
+            localPropertiesFile.inputStream().use { properties.load(it) }
+            properties.getProperty("GEMINI_API_KEY", "") ?: ""
+        } else {
+            ""
+        }
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
         
         // Support for 16 KB page size devices (Android 15+)
         // This helps with compatibility warning for native libraries
@@ -45,6 +58,7 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -87,6 +101,13 @@ dependencies {
     implementation(libs.camerax.camera2)
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
+    
+    // Gemini API
+    implementation(libs.google.generative.ai)
+    
+    // Coroutines for async operations
+    implementation(libs.kotlinx.coroutines.android)
+    
     coreLibraryDesugaring(libs.androidx.desugar.jdk.libs)
     
     // Bridgefy SDK

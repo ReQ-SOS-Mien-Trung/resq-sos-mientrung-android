@@ -78,9 +78,9 @@
             android:fontFamily="sans-serif-medium" />
     </LinearLayout>
 
-    <!-- Menu Item: Hướng dẫn sử dụng -->
+    <!-- Menu Item: Chat Bot AI -->
     <LinearLayout
-        android:id="@+id/menuGuide"
+        android:id="@+id/menuAIChatbot"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -96,14 +96,14 @@
         <ImageView
             android:layout_width="28dp"
             android:layout_height="28dp"
-            android:src="@drawable/ic_guide"
+            android:src="@drawable/ic_ai_assistant"
             app:tint="@color/bottom_sheet_icon" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="20dp"
-            android:text="Hướng dẫn sử dụng"
+            android:text="Chat Bot AI"
             android:textSize="16sp"
             android:textColor="@color/bottom_sheet_text"
             android:fontFamily="sans-serif-medium" />
