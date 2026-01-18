@@ -14,6 +14,13 @@
     <color name="nav_unselected">#9E9E9E</color>
     <color name="nav_indicator_background">#20FF6B35</color>
     
+    <!-- Orange floating nav bar colors -->
+    <color name="nav_bar_dark">#1C1C1E</color>
+    <color name="nav_pill_selected">#FF6B35</color>
+    <color name="nav_icon_selected">#FFFFFF</color>
+    <color name="nav_icon_unselected">#8E8E93</color>
+    <color name="nav_fab_bg">#FF6B35</color>
+    
     <!-- Message colors for light mode -->
     <color name="message_text_received">#FF000000</color>
     <color name="message_text_sent">#FFFFFFFF</color>
@@ -29,4 +36,26 @@
     <color name="chat_mode_bg">#FFF5E6</color>
     <color name="chat_mode_stroke">#FFE0B2</color>
     <color name="status_container_bg">#F5F5F5</color>
+    
+    <!-- Home screen colors - Light Mode -->
+    <color name="home_background">#FFF8F5</color>
+    <color name="home_text_primary">#1C1C1E</color>
+    <color name="home_text_secondary">#636366</color>
+    <color name="weather_icon">#FF6B35</color>
+    <color name="notification_icon">#FF6B35</color>
+    <color name="notification_button">#FF6B35</color>
+    <color name="card_background">#FFFFFF</color>
+    <color name="card_icon_red">#FF6B35</color>
+    <color name="card_icon_grey">#8E8E93</color>
+    <color name="card_icon_orange">#FF9500</color>
+    <color name="card_icon_green">#34C759</color>
+    <color name="card_icon_blue">#007AFF</color>
+    <color name="card_text">#1C1C1E</color>
+    <color name="card_stroke">#E5E5EA</color>
+    
+    <!-- Bottom sheet colors -->
+    <color name="bottom_sheet_bg">#1C1C1E</color>
+    <color name="bottom_sheet_handle">#48484A</color>
+    <color name="bottom_sheet_text">#FFFFFF</color>
+    <color name="bottom_sheet_icon">#FF6B35</color>
 </resources>
