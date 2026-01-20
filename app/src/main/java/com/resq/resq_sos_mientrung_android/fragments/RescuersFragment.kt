@@ -140,27 +140,64 @@ class RescuersFragment : Fragment(), BridgefyManager.BridgefyListener {
     override fun onMessageReceived(message: Message, user: User) {
         // Check if this is an SOS signal
         try {
-            val jsonObject = JSONObject(message.content)
-            val messageType = jsonObject.optString("type", "")
+            val jsonString = message.content
             
-            if (messageType == "SOS") {
-                val senderName = jsonObject.optString("senderName", user.getDisplayNameOrShortId())
-                val senderId = jsonObject.optString("senderId", user.userId)
+            // Try to parse as MessagePayload format first (iOS compatible)
+            var isSOS = false
+            var senderName: String? = null
+            var senderId: String? = null
+            var latitude: Double? = null
+            var longitude: Double? = null
+            
+            try {
+                val gson = com.google.gson.GsonBuilder().create()
+                val payload = gson.fromJson(jsonString, com.resq.resq_sos_mientrung_android.bridgefy.MessagePayload::class.java)
                 
-                // Parse GPS location từ SOS signal
-                val latitude = if (jsonObject.has("latitude")) {
-                    jsonObject.optDouble("latitude", Double.NaN).takeIf { !it.isNaN() }
-                } else {
+                // Check if it's SOS_LOCATION type
+                if (payload.type == com.resq.resq_sos_mientrung_android.bridgefy.MessageType.SOS_LOCATION) {
+                    isSOS = true
+                    senderName = payload.senderName
+                    senderId = payload.senderId.toString()
+                    latitude = payload.latitude
+                    longitude = payload.longitude
+                }
+            } catch (e: Exception) {
+                // Not MessagePayload format, try legacy format
+                Log.d("RescuersFragment", "Not MessagePayload format, trying legacy: ${e.message}")
+            }
+            
+            // Fallback to legacy format
+            if (!isSOS) {
+                val jsonObject = JSONObject(jsonString)
+                val messageType = jsonObject.optString("type", "")
+                
+                if (messageType == "SOS" || messageType == "sosLocation") {
+                    isSOS = true
+                    senderName = jsonObject.optString("senderName", user.getDisplayNameOrShortId())
+                    senderId = jsonObject.optString("senderId", user.userId)
+                    
+                    // Parse GPS location từ SOS signal
+                    latitude = if (jsonObject.has("latitude")) {
+                        jsonObject.optDouble("latitude", Double.NaN).takeIf { !it.isNaN() }
+                    } else {
+                        null
+                    }
+                    longitude = if (jsonObject.has("longitude")) {
+                        jsonObject.optDouble("longitude", Double.NaN).takeIf { !it.isNaN() }
+                    } else {
+                        null
+                    }
+                }
+            }
+            
+            if (isSOS && senderId != null) {
+                // Parse UWB address if available (from legacy format)
+                val uwbAddressBytes = try {
+                    val jsonObject = JSONObject(jsonString)
+                    jsonObject.optString("uwbAddress", null)
+                } catch (e: Exception) {
                     null
                 }
-                val longitude = if (jsonObject.has("longitude")) {
-                    jsonObject.optDouble("longitude", Double.NaN).takeIf { !it.isNaN() }
-                } else {
-                    null
-                }
-                
-                // Parse UWB address if available
-                val uwbAddressBytes = jsonObject.optString("uwbAddress", null)
                 val uwbAddress = if (!uwbAddressBytes.isNullOrEmpty()) {
                     try {
                         // Convert from base64 or hex string to bytes
@@ -174,7 +211,7 @@ class RescuersFragment : Fragment(), BridgefyManager.BridgefyListener {
                 
                 val rescueDevice = RescueDevice(
                     deviceId = senderId,
-                    deviceName = senderName,
+                    deviceName = senderName ?: user.getDisplayNameOrShortId(),
                     uwbAddress = uwbAddress,
                     latitude = latitude,
                     longitude = longitude,
@@ -189,7 +226,7 @@ class RescuersFragment : Fragment(), BridgefyManager.BridgefyListener {
                     } else {
                         " (chưa có vị trí)"
                     }
-                    Log.d("RescuersFragment", "SOS signal received from $senderName$locationInfo")
+                    Log.d("RescuersFragment", "SOS signal received from ${rescueDevice.deviceName}$locationInfo")
                 }
             }
         } catch (e: Exception) {

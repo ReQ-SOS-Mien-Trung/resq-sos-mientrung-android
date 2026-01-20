@@ -63,12 +63,18 @@ class HomeFragment : Fragment() {
                 
                 if (location != null) {
                     val weatherApiKey = BuildConfig.WEATHER_API_KEY
-                    if (weatherApiKey.isEmpty() || weatherApiKey == "YOUR_WEATHER_API_KEY_HERE") {
+                    android.util.Log.d("HomeFragment", "Weather API Key length: ${weatherApiKey.length}")
+                    
+                    if (weatherApiKey.isEmpty() || 
+                        weatherApiKey == "YOUR_WEATHER_API_KEY_HERE" || 
+                        weatherApiKey == "YOUR_OPENWEATHER_API_KEY_HERE") {
                         binding.weatherText.text = "Cần cấu hình API key"
                         binding.weatherDescription.text = "Vui lòng thêm WEATHER_API_KEY vào local.properties"
+                        android.util.Log.w("HomeFragment", "Weather API key not configured")
                         return@launch
                     }
                     
+                    android.util.Log.d("HomeFragment", "Fetching weather for location: ${location.latitude}, ${location.longitude}")
                     val weatherResponse = withContext(Dispatchers.IO) {
                         WeatherService.getCurrentWeather(
                             location.latitude,
@@ -81,16 +87,19 @@ class HomeFragment : Fragment() {
                         updateWeatherUI(weatherResponse)
                     } else {
                         binding.weatherText.text = "Không thể tải dữ liệu"
-                        binding.weatherDescription.text = "Vui lòng thử lại sau"
+                        binding.weatherDescription.text = "Kiểm tra API key và kết nối mạng"
+                        android.util.Log.e("HomeFragment", "Weather response is null")
                     }
                 } else {
                     binding.weatherText.text = "Không lấy được vị trí"
                     binding.weatherDescription.text = "Vui lòng bật GPS"
+                    android.util.Log.w("HomeFragment", "Location is null")
                 }
             } catch (e: Exception) {
-                android.util.Log.e("HomeFragment", "Error loading weather: ${e.message}", e)
+                android.util.Log.e("HomeFragment", "Error loading weather: ${e.javaClass.simpleName} - ${e.message}", e)
+                e.printStackTrace()
                 binding.weatherText.text = "Lỗi tải dữ liệu"
-                binding.weatherDescription.text = "Vui lòng thử lại"
+                binding.weatherDescription.text = "${e.javaClass.simpleName}: ${e.message}"
             }
         }
     }

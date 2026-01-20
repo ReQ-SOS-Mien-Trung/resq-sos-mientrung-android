@@ -1,6 +1,7 @@
 package com.resq.resq_sos_mientrung_android.services
 
 import com.google.gson.annotations.SerializedName
+import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
@@ -79,9 +80,23 @@ object WeatherService {
         return try {
             // WeatherAPI.com accepts coordinates as "lat,lon"
             val query = "$latitude,$longitude"
-            apiService.getCurrentWeather(apiKey, query)
+            android.util.Log.d("WeatherService", "Fetching weather for: $query")
+            val response = apiService.getCurrentWeather(apiKey, query)
+            android.util.Log.d("WeatherService", "Weather fetched successfully: ${response.location.name}")
+            response
+        } catch (e: HttpException) {
+            val errorBody = e.response()?.errorBody()?.string() ?: "No error body"
+            android.util.Log.e("WeatherService", "HTTP Error ${e.code()}: ${e.message}\nError body: $errorBody", e)
+            null
+        } catch (e: java.net.UnknownHostException) {
+            android.util.Log.e("WeatherService", "Network error: No internet connection", e)
+            null
+        } catch (e: java.net.SocketTimeoutException) {
+            android.util.Log.e("WeatherService", "Network error: Request timeout", e)
+            null
         } catch (e: Exception) {
-            android.util.Log.e("WeatherService", "Error fetching weather: ${e.message}", e)
+            android.util.Log.e("WeatherService", "Error fetching weather: ${e.javaClass.simpleName} - ${e.message}", e)
+            e.printStackTrace()
             null
         }
     }
