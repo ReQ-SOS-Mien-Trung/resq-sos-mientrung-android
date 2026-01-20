@@ -12,6 +12,12 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonPrimitive
 import com.google.gson.JsonSerializationContext
 import com.google.gson.JsonSerializer
+import com.resq.resq_sos_mientrung_android.services.SOSRelayService
+import com.resq.resq_sos_mientrung_android.utils.NetworkMonitor
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.lang.reflect.Type
 import java.text.SimpleDateFormat
@@ -64,6 +70,15 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
     private val appContext: Context = context.applicationContext
     private var isInitialized = false
     private var listeners: MutableList<BridgefyListener> = mutableListOf()
+    
+    // Coroutine scope for async operations
+    private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    
+    // Network monitor for checking connectivity
+    private val networkMonitor: NetworkMonitor by lazy { NetworkMonitor.getInstance(appContext) }
+    
+    // Set để track các SOS packet đã xử lý (tránh trùng lặp)
+    private val processedSOSPacketIds = mutableSetOf<String>()
     
     // ⭐ CRITICAL: Profile cache - UI list is built from this, NOT from connectedUsers
     private val userProfiles = mutableMapOf<UUID, User>()
@@ -356,6 +371,190 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
     }
     
     /**
+     * ⭐ CRITICAL: Send SOS with upload to server (iOS compatible)
+     * Flow theo docs iOS:
+     * 1. Nếu có mạng → upload trực tiếp lên server
+     * 2. Luôn broadcast qua mesh để các device khác relay
+     * 
+     * @param message Nội dung SOS
+     * @param latitude Vĩ độ GPS (null nếu không có)
+     * @param longitude Kinh độ GPS (null nếu không có)
+     * @param senderName Tên người gửi
+     * @param senderPhone Số điện thoại người gửi
+     * @param onComplete Callback khi hoàn thành (success: Boolean)
+     */
+    fun sendSOSWithUpload(
+        message: String,
+        latitude: Double?,
+        longitude: Double?,
+        senderName: String? = null,
+        senderPhone: String? = null,
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
+        if (!isInitialized) {
+            Log.e(TAG, "Cannot send SOS - Bridgefy not initialized")
+            onComplete?.invoke(false)
+            return
+        }
+        
+        val localUserId = getLocalUserId()
+        if (localUserId.isBlank()) {
+            Log.e(TAG, "Cannot send SOS - no local user ID")
+            onComplete?.invoke(false)
+            return
+        }
+        
+        // Nếu không có location, fallback gửi broadcast text thường
+        if (latitude == null || longitude == null) {
+            Log.w(TAG, "No location available - sending as broadcast message")
+            sendBroadcastMessage("🆘 SOS: $message")
+            onComplete?.invoke(true)
+            return
+        }
+        
+        // Tạo SOS Packet
+        val sosPacket = SOSPacket.create(
+            originId = localUserId,
+            message = message,
+            latitude = latitude,
+            longitude = longitude,
+            senderName = senderName ?: myDeviceName,
+            senderPhone = senderPhone
+        )
+        
+        Log.d(TAG, "📤 Sending SOS: packetId=${sosPacket.packetId}, location=($latitude, $longitude)")
+        
+        coroutineScope.launch {
+            var uploadSuccess = false
+            
+            // 1. Nếu có mạng → upload trực tiếp lên server
+            if (networkMonitor.isConnectedSync) {
+                Log.d(TAG, "📤 Device has network - uploading SOS to server")
+                uploadSuccess = SOSRelayService.uploadSOS(sosPacket)
+                if (uploadSuccess) {
+                    Log.d(TAG, "✅ SOS uploaded to server successfully")
+                } else {
+                    Log.w(TAG, "⚠️ SOS upload to server failed")
+                }
+            } else {
+                Log.d(TAG, "📤 No network - SOS will be relayed via mesh only")
+            }
+            
+            // 2. Luôn broadcast qua mesh để các device khác relay
+            broadcastSOSPacket(sosPacket)
+            
+            onComplete?.invoke(true)
+        }
+    }
+    
+    /**
+     * Broadcast SOS packet qua mesh network
+     */
+    private fun broadcastSOSPacket(sosPacket: SOSPacket) {
+        try {
+            val nearbyUsers = getNearbyUsers()
+            
+            // Tạo MeshPayload chứa SOSPacket
+            val meshPayload = MeshPayload(
+                type = MeshPayloadType.SOS,
+                sosPacket = sosPacket
+            )
+            
+            val json = gson.toJson(meshPayload)
+            
+            if (nearbyUsers.isEmpty()) {
+                Log.w(TAG, "📤 No nearby users to broadcast SOS - packet stored for later relay")
+                // Packet will be picked up when users connect
+            } else {
+                for (user in nearbyUsers) {
+                    try {
+                        val messageId = Bridgefy.sendMessage(user.userId, json)
+                        Log.d(TAG, "📤 SOS packet broadcast to ${user.userId} with ID: $messageId")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error broadcasting SOS to ${user.userId}", e)
+                    }
+                }
+                Log.d(TAG, "📤 SOS packet broadcast to ${nearbyUsers.size} users")
+            }
+            
+            // Cũng tạo Message để hiển thị trong UI chat
+            val messagePayload = MessagePayload(
+                type = MessageType.SOS_LOCATION,
+                text = sosPacket.message,
+                messageId = UUID.fromString(sosPacket.packetId),
+                timestamp = sosPacket.timestamp,
+                senderId = UUID.fromString(sosPacket.originId),
+                senderName = sosPacket.senderName ?: myDeviceName,
+                senderPhone = sosPacket.senderPhone ?: "",
+                channelId = null,
+                recipientId = null,
+                latitude = sosPacket.latitude,
+                longitude = sosPacket.longitude
+            )
+            
+            // Notify listeners về SOS đã gửi
+            val message = Message(sosPacket.packetId, gson.toJson(messagePayload))
+            val user = User(sosPacket.originId, sosPacket.senderName ?: myDeviceName)
+            listeners.forEach { it.onSOSSent(sosPacket) }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error broadcasting SOS packet", e)
+        }
+    }
+    
+    /**
+     * Handle received SOS packet from mesh
+     * - Nếu có mạng → relay lên server
+     * - Nếu không mạng → forward tiếp qua mesh
+     */
+    private fun handleReceivedSOSPacket(sosPacket: SOSPacket, routingUser: User) {
+        Log.d(TAG, "📨 Received SOS packet: packetId=${sosPacket.packetId}, from=${sosPacket.originId}")
+        
+        // Kiểm tra đã xử lý packet này chưa
+        if (processedSOSPacketIds.contains(sosPacket.packetId)) {
+            Log.d(TAG, "📨 SOS packet already processed, skipping: ${sosPacket.packetId}")
+            return
+        }
+        
+        // Đánh dấu đã xử lý
+        processedSOSPacketIds.add(sosPacket.packetId)
+        
+        // Giới hạn số lượng packet IDs được lưu
+        if (processedSOSPacketIds.size > 1000) {
+            val iterator = processedSOSPacketIds.iterator()
+            repeat(500) {
+                if (iterator.hasNext()) {
+                    iterator.next()
+                    iterator.remove()
+                }
+            }
+        }
+        
+        // Notify listeners về SOS nhận được
+        listeners.forEach { it.onSOSReceived(sosPacket) }
+        
+        coroutineScope.launch {
+            // Nếu có mạng → relay lên server
+            if (networkMonitor.isConnectedSync) {
+                Log.d(TAG, "📤 Device has network - relaying SOS to server")
+                val success = SOSRelayService.uploadRelayedSOS(sosPacket, getLocalUserId())
+                if (success) {
+                    Log.d(TAG, "✅ SOS relayed to server successfully")
+                }
+            } else {
+                // Không có mạng → forward tiếp qua mesh
+                if (sosPacket.canRelay() && !sosPacket.hasBeenRelayedBy(getLocalUserId())) {
+                    Log.d(TAG, "📤 No network - forwarding SOS via mesh (hop=${sosPacket.hopCount})")
+                    val relayedPacket = sosPacket.createRelayedPacket(getLocalUserId())
+                    broadcastSOSPacket(relayedPacket)
+                } else {
+                    Log.d(TAG, "📤 SOS packet reached max hops or already relayed by this device")
+                }
+            }
+        }
+    }
+
+    /**
      * Gửi tin nhắn broadcast tới tất cả người dùng gần đây
      * Uses MessagePayload format with type: TEXT (iOS compatible)
      * @return List of message IDs for each user
@@ -482,7 +681,18 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
         val jsonString = message.content
         val messageId = message.messageId
         
-        // ⭐ CRITICAL: Try to decode as MessagePayload first (iOS format)
+        // ⭐ CRITICAL: Try to decode as MeshPayload first (for SOS packets)
+        try {
+            val meshPayload = gson.fromJson(jsonString, MeshPayload::class.java)
+            if (meshPayload.type == MeshPayloadType.SOS && meshPayload.sosPacket != null) {
+                handleReceivedSOSPacket(meshPayload.sosPacket, user)
+                return
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "Not a MeshPayload format: ${e.message}")
+        }
+        
+        // ⭐ CRITICAL: Try to decode as MessagePayload (iOS format)
         try {
             val payload = gson.fromJson(jsonString, MessagePayload::class.java)
             handleMessagePayload(payload, user)
@@ -704,5 +914,9 @@ class BridgefyManager private constructor(context: Context) : BridgefyDelegate {
         fun onMessageReceived(message: Message, user: User)
         fun onMessageSent(messageId: String)
         fun onMessageFailed(messageId: String, error: String)
+        
+        // SOS specific callbacks
+        fun onSOSSent(sosPacket: SOSPacket) {}
+        fun onSOSReceived(sosPacket: SOSPacket) {}
     }
 }

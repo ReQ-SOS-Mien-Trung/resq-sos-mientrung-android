@@ -206,7 +206,8 @@ class HomeFragment : Fragment() {
         }
         
         binding.cardPostHelpRequest.setOnClickListener {
-            // TODO: Navigate to post help request screen
+            // Navigate to SOS Help Request Form
+            openSOSForm()
         }
         
         binding.cardContact.setOnClickListener {
@@ -230,5 +231,19 @@ class HomeFragment : Fragment() {
         super.onDestroyView()
         coroutineScope.cancel()
         _binding = null
+    }
+    
+    /**
+     * Open SOS Help Request Form
+     */
+    private fun openSOSForm() {
+        val sosFormFragment = SOSFormFragment()
+        
+        // Hide current fragment and add SOS form
+        parentFragmentManager.beginTransaction()
+            .hide(this)
+            .add(R.id.fragmentContainer, sosFormFragment, "sos_form")
+            .addToBackStack("sos_form")
+            .commit()
     }
 }

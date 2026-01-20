@@ -88,12 +88,33 @@ class MainActivity : AppCompatActivity() {
             override fun handleOnBackPressed() {
                 val aiChatbotFragment = supportFragmentManager.findFragmentByTag("fragment_ai_chatbot")
                 if (aiChatbotFragment != null && aiChatbotFragment.isVisible) {
-                    supportFragmentManager.popBackStack()
-                    // Restore the previous tab
-                    if (selectedTab >= 0) {
-                        loadFragmentSafely(selectedTab)
-                    } else {
-                        loadFragmentSafely(0) // Default to home
+                    // Hide AI Chatbot và show lại fragment trước đó
+                    try {
+                        val transaction = supportFragmentManager.beginTransaction()
+                        transaction.hide(aiChatbotFragment)
+                        
+                        // Show lại fragment của tab đang được chọn
+                        val currentTag = fragmentTags[selectedTab]
+                        if (currentTag != null) {
+                            supportFragmentManager.findFragmentByTag(currentTag)?.let { frag ->
+                                if (frag.isAdded) {
+                                    transaction.show(frag)
+                                }
+                            }
+                        }
+                        
+                        // Pop back stack
+                        supportFragmentManager.popBackStack()
+                        
+                        if (!supportFragmentManager.isStateSaved) {
+                            transaction.commit()
+                        } else {
+                            transaction.commitAllowingStateLoss()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        // Fallback: just pop back stack
+                        supportFragmentManager.popBackStack()
                     }
                 } else {
                     // Default back behavior
@@ -257,6 +278,15 @@ class MainActivity : AppCompatActivity() {
                             transaction.hide(frag)
                         }
                     }
+                }
+            }
+            
+            // Cũng hide AI Chatbot nếu đang hiển thị
+            supportFragmentManager.findFragmentByTag("fragment_ai_chatbot")?.let { aiFragment ->
+                if (aiFragment.isAdded && !aiFragment.isHidden) {
+                    transaction.hide(aiFragment)
+                    // Pop back stack để clear AI chatbot từ stack
+                    supportFragmentManager.popBackStack("ai_chatbot", androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
                 }
             }
             
@@ -459,12 +489,58 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun showAIChatbotFragment() {
+        // Kiểm tra activity còn valid không
+        if (isFinishing || isDestroyed) {
+            return
+        }
+        
+        // Kiểm tra fragment manager còn valid không
+        if (supportFragmentManager.isDestroyed) {
+            return
+        }
+        
         try {
-            val aiChatbotFragment = AIChatbotFragment()
+            // Kiểm tra xem AI Chatbot đã mở chưa
+            val existingAIChatbot = supportFragmentManager.findFragmentByTag("fragment_ai_chatbot")
+            if (existingAIChatbot != null && existingAIChatbot.isVisible) {
+                return // Đã mở rồi
+            }
+            
             val transaction = supportFragmentManager.beginTransaction()
-            transaction.replace(R.id.fragmentContainer, aiChatbotFragment, "fragment_ai_chatbot")
+            
+            // Hide tất cả các fragment đang hiển thị thay vì replace
+            for ((_, fragTag) in fragmentTags) {
+                supportFragmentManager.findFragmentByTag(fragTag)?.let { frag ->
+                    if (frag.isAdded && !frag.isHidden) {
+                        transaction.hide(frag)
+                    }
+                }
+            }
+            
+            // Cũng hide AI chatbot cũ nếu có nhưng bị hidden
+            existingAIChatbot?.let {
+                if (it.isAdded && it.isHidden) {
+                    transaction.show(it)
+                    transaction.addToBackStack("ai_chatbot")
+                    if (!supportFragmentManager.isStateSaved) {
+                        transaction.commit()
+                    } else {
+                        transaction.commitAllowingStateLoss()
+                    }
+                    return
+                }
+            }
+            
+            // Tạo và add AI Chatbot fragment mới
+            val aiChatbotFragment = AIChatbotFragment()
+            transaction.add(R.id.fragmentContainer, aiChatbotFragment, "fragment_ai_chatbot")
             transaction.addToBackStack("ai_chatbot")
-            transaction.commit()
+            
+            if (!supportFragmentManager.isStateSaved) {
+                transaction.commit()
+            } else {
+                transaction.commitAllowingStateLoss()
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "Không thể mở Chat Bot AI", Toast.LENGTH_SHORT).show()

@@ -58,4 +58,12 @@
     <color name="bottom_sheet_handle">#48484A</color>
     <color name="bottom_sheet_text">#FFFFFF</color>
     <color name="bottom_sheet_icon">#FF6B35</color>
+    
+    <!-- SOS Form colors -->
+    <color name="sos_button_red">#FF3B30</color>
+    <color name="sos_button_red_dark">#D63027</color>
+    <color name="sos_selected_bg">#FFEDEB</color>
+    <color name="sos_selected_stroke">#FF3B30</color>
+    <color name="network_connected">#34C759</color>
+    <color name="network_disconnected">#FF3B30</color>
 </resources>
