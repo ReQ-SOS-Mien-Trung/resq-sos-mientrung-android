@@ -86,10 +86,10 @@
 
                     <ImageView
                         android:id="@+id/weatherIcon"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:src="@drawable/ic_weather"
-                        android:tint="@color/weather_icon" />
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:src="@drawable/ic_weather_sunny"
+                        android:contentDescription="Weather icon" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -108,11 +108,21 @@
                             android:textStyle="bold" />
 
                         <TextView
+                            android:id="@+id/weatherDescription"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Có mây, 28°C"
+                            android:text="Đang tải..."
                             android:textSize="13sp"
                             android:textColor="@color/home_text_secondary" />
+                        
+                        <TextView
+                            android:id="@+id/weatherTemperature"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="--°C"
+                            android:textSize="13sp"
+                            android:textColor="@color/home_text_secondary"
+                            android:layout_marginTop="2dp" />
                     </LinearLayout>
 
                     <TextView

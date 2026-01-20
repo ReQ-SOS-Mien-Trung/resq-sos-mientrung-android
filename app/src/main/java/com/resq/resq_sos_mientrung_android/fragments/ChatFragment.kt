@@ -552,17 +552,21 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                     }
                 }
                 
-                val isBroadcastMessage = type == "broadcast"
+                // ⭐ CRITICAL: Xác định broadcast message dựa trên recipientId
+                // Nếu recipientId không có hoặc null -> đây là broadcast message
+                // Nếu recipientId có giá trị -> đây là private message
+                val recipientId = messageData.optString("recipientId", null)
+                val isBroadcastMessage = recipientId.isNullOrBlank()
                 
                 // QUAN TRỌNG: Luôn dùng user.userId (SDK UUID) làm định danh người gửi
                 // vì đây là ID nhất quán với danh sách getNearbyUsers() và selectedUserId
                 // senderId trong JSON có thể là ANDROID_ID (không khớp với SDK UUID)
                 val actualSenderId = user.userId
                 
-                // Lấy targetUserId từ JSON (ID người nhận - là mình nếu đây là tin nhắn riêng)
-                val targetUserId = messageData.optString("targetUserId", null)
+                // Lấy senderId từ JSON (người gửi tin nhắn)
+                val senderIdFromJson = messageData.optString("senderId", null)
                 
-                android.util.Log.d("ChatFragment", "Received message - actualSenderId (SDK): $actualSenderId, targetUserId: $targetUserId, type: $type, isBroadcast: $isBroadcastMessage, current mode: ${if (isBroadcastMode) "broadcast" else "private"}, selectedUserId: $selectedUserId")
+                android.util.Log.d("ChatFragment", "Received message - actualSenderId (SDK): $actualSenderId, senderIdFromJson: $senderIdFromJson, recipientId: $recipientId, isBroadcast: $isBroadcastMessage, current mode: ${if (isBroadcastMode) "broadcast" else "private"}, selectedUserId: $selectedUserId")
                 
                 val chatMessage = ChatMessage(
                     id = message.messageId,
@@ -572,7 +576,7 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                     timestamp = timestamp,
                     isSent = false,
                     isBroadcast = isBroadcastMessage,
-                    targetUserId = targetUserId // Lưu lại targetUserId nếu có
+                    targetUserId = recipientId // Lưu recipientId (người nhận) vào targetUserId
                 )
                 
                 messages.add(chatMessage)
@@ -626,7 +630,9 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                         }
                         
                         // Luôn dùng user.userId (SDK UUID) làm định danh người gửi
-                        val targetUserId = messageData.optString("targetUserId", null)
+                        // ⭐ Kiểm tra recipientId để xác định broadcast
+                        val recipientId2 = messageData.optString("recipientId", null)
+                        val isBroadcast2 = recipientId2.isNullOrBlank()
                         
                         val chatMessage = ChatMessage(
                             id = message.messageId,
@@ -635,8 +641,8 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                             senderName = displayName,
                             timestamp = timestamp,
                             isSent = false,
-                            isBroadcast = messageData.optString("type", "") == "broadcast",
-                            targetUserId = targetUserId
+                            isBroadcast = isBroadcast2,
+                            targetUserId = recipientId2 // Sử dụng recipientId làm targetUserId
                         )
                         
                         messages.add(chatMessage)
@@ -674,7 +680,9 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                             }
                             
                             // Luôn dùng user.userId (SDK UUID) làm định danh người gửi
-                            val targetUserId = messageData.optString("targetUserId", null)
+                            // ⭐ Kiểm tra recipientId để xác định broadcast
+                            val recipientId3 = messageData.optString("recipientId", null)
+                            val isBroadcast3 = recipientId3.isNullOrBlank()
                             
                             val chatMessage = ChatMessage(
                                 id = message.messageId,
@@ -683,8 +691,8 @@ class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
                                 senderName = displayName,
                                 timestamp = System.currentTimeMillis(),
                                 isSent = false,
-                                isBroadcast = messageData.optString("type", "") == "broadcast",
-                                targetUserId = targetUserId
+                                isBroadcast = isBroadcast3,
+                                targetUserId = recipientId3 // Sử dụng recipientId làm targetUserId
                             )
                             
                             messages.add(chatMessage)
