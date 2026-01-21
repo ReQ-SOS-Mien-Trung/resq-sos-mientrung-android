@@ -63,4 +63,8 @@
     <color name="bottom_sheet_handle">#48484A</color>
     <color name="bottom_sheet_text">#FFFFFF</color>
     <color name="bottom_sheet_icon">#FF6B35</color>
+    
+    <!-- Switch colors -->
+    <color name="switch_track_color">#48484A</color>
+    <color name="switch_thumb_color">@color/orange_primary</color>
 </resources>

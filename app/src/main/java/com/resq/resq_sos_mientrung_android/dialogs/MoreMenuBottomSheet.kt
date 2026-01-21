@@ -16,7 +16,7 @@ class MoreMenuBottomSheet : BottomSheetDialogFragment() {
         fun onNewsClick()
         fun onAIChatbotClick()
         fun onSettingsClick()
-        fun onAboutClick()
+        fun onAboutClick() // Keep for backward compatibility, redirects to Settings
     }
 
     private var listener: OnMenuItemClickListener? = null
@@ -59,12 +59,6 @@ class MoreMenuBottomSheet : BottomSheetDialogFragment() {
         // Menu: Cài đặt
         view.findViewById<LinearLayout>(R.id.menuSettings)?.setOnClickListener {
             listener?.onSettingsClick()
-            dismiss()
-        }
-
-        // Menu: Thông tin ứng dụng
-        view.findViewById<LinearLayout>(R.id.menuAbout)?.setOnClickListener {
-            listener?.onAboutClick()
             dismiss()
         }
     }

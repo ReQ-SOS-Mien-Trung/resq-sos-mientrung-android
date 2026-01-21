@@ -66,4 +66,8 @@
     <color name="sos_selected_stroke">#FF3B30</color>
     <color name="network_connected">#34C759</color>
     <color name="network_disconnected">#FF3B30</color>
+    
+    <!-- Switch colors -->
+    <color name="switch_track_color">#E0E0E0</color>
+    <color name="switch_thumb_color">@color/orange_primary</color>
 </resources>

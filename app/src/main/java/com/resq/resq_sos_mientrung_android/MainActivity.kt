@@ -27,6 +27,7 @@ import com.resq.resq_sos_mientrung_android.fragments.ChatFragment
 import com.resq.resq_sos_mientrung_android.fragments.HomeFragment
 import com.resq.resq_sos_mientrung_android.fragments.MapFragment
 import com.resq.resq_sos_mientrung_android.fragments.RescuersFragment
+import com.resq.resq_sos_mientrung_android.fragments.SettingsFragment
 import com.resq.resq_sos_mientrung_android.fragments.UsersFragment
 
 class MainActivity : AppCompatActivity() {
@@ -86,44 +87,73 @@ class MainActivity : AppCompatActivity() {
         // Setup back press handler
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                val aboutFragment = supportFragmentManager.findFragmentByTag("fragment_about")
+                val settingsFragment = supportFragmentManager.findFragmentByTag("fragment_settings")
                 val aiChatbotFragment = supportFragmentManager.findFragmentByTag("fragment_ai_chatbot")
-                if (aiChatbotFragment != null && aiChatbotFragment.isVisible) {
-                    // Hide AI Chatbot và show lại fragment trước đó
-                    try {
-                        val transaction = supportFragmentManager.beginTransaction()
-                        transaction.hide(aiChatbotFragment)
-                        
-                        // Show lại fragment của tab đang được chọn
-                        val currentTag = fragmentTags[selectedTab]
-                        if (currentTag != null) {
-                            supportFragmentManager.findFragmentByTag(currentTag)?.let { frag ->
-                                if (frag.isAdded) {
-                                    transaction.show(frag)
-                                }
-                            }
-                        }
-                        
-                        // Pop back stack
-                        supportFragmentManager.popBackStack()
-                        
-                        if (!supportFragmentManager.isStateSaved) {
-                            transaction.commit()
-                        } else {
-                            transaction.commitAllowingStateLoss()
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        // Fallback: just pop back stack
-                        supportFragmentManager.popBackStack()
+                
+                when {
+                    // Handle About fragment back -> go to Settings
+                    aboutFragment != null && aboutFragment.isVisible -> {
+                        handleOverlayFragmentBack(aboutFragment, settingsFragment)
                     }
-                } else {
-                    // Default back behavior
-                    if (!supportFragmentManager.popBackStackImmediate()) {
-                        finish()
+                    
+                    // Handle Settings fragment back -> go to current tab
+                    settingsFragment != null && settingsFragment.isVisible -> {
+                        handleOverlayFragmentBack(settingsFragment, null)
+                    }
+                    
+                    // Handle AI Chatbot fragment back -> go to current tab
+                    aiChatbotFragment != null && aiChatbotFragment.isVisible -> {
+                        handleOverlayFragmentBack(aiChatbotFragment, null)
+                    }
+                    
+                    else -> {
+                        // Default back behavior
+                        if (!supportFragmentManager.popBackStackImmediate()) {
+                            finish()
+                        }
                     }
                 }
             }
         })
+    }
+    
+    /**
+     * Xử lý back cho các overlay fragment (About, Settings, AI Chatbot)
+     * @param currentFragment Fragment đang hiển thị cần hide
+     * @param targetFragment Fragment cần show (null = show tab hiện tại)
+     */
+    private fun handleOverlayFragmentBack(currentFragment: Fragment, targetFragment: Fragment?) {
+        try {
+            val transaction = supportFragmentManager.beginTransaction()
+            transaction.hide(currentFragment)
+            
+            if (targetFragment != null && targetFragment.isAdded) {
+                // Show fragment đích (ví dụ: About -> Settings)
+                transaction.show(targetFragment)
+            } else {
+                // Show lại fragment của tab đang được chọn
+                val currentTag = fragmentTags[selectedTab]
+                if (currentTag != null) {
+                    supportFragmentManager.findFragmentByTag(currentTag)?.let { frag ->
+                        if (frag.isAdded) {
+                            transaction.show(frag)
+                        }
+                    }
+                }
+            }
+            
+            supportFragmentManager.popBackStack()
+            
+            if (!supportFragmentManager.isStateSaved) {
+                transaction.commit()
+            } else {
+                transaction.commitAllowingStateLoss()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            supportFragmentManager.popBackStack()
+        }
     }
 
     private fun setupNavigationBar() {
@@ -176,12 +206,12 @@ class MainActivity : AppCompatActivity() {
 
             override fun onSettingsClick() {
                 // Mở cài đặt
-                Toast.makeText(this@MainActivity, "Tính năng Cài đặt đang phát triển", Toast.LENGTH_SHORT).show()
+                showSettingsFragment()
             }
 
             override fun onAboutClick() {
-                // Hiển thị thông tin ứng dụng
-                showAboutDialog()
+                // Hiển thị thông tin ứng dụng - giờ nằm trong Settings
+                showSettingsFragment()
             }
         })
         bottomSheet.show(supportFragmentManager, MoreMenuBottomSheet.TAG)
@@ -240,12 +270,31 @@ class MainActivity : AppCompatActivity() {
             return
         }
         
-        // Nếu đang ở tab này rồi, không cần load lại
-        if (selectedTab == position && currentFragment != null) {
+        // Kiểm tra xem có overlay fragment nào đang hiển thị không
+        val hasVisibleOverlay = isAnyOverlayFragmentVisible()
+        
+        // Nếu đang ở tab này rồi VÀ không có overlay nào đang hiển thị, không cần load lại
+        if (selectedTab == position && currentFragment != null && !hasVisibleOverlay) {
             return
         }
         
         loadFragment(position)
+    }
+    
+    /**
+     * Kiểm tra xem có overlay fragment nào đang hiển thị không
+     */
+    private fun isAnyOverlayFragmentVisible(): Boolean {
+        val overlayTags = listOf("fragment_ai_chatbot", "fragment_settings", "fragment_about")
+        
+        for (tag in overlayTags) {
+            supportFragmentManager.findFragmentByTag(tag)?.let { fragment ->
+                if (fragment.isAdded && fragment.isVisible) {
+                    return true
+                }
+            }
+        }
+        return false
     }
     
     private fun loadFragment(position: Int) {
@@ -268,6 +317,9 @@ class MainActivity : AppCompatActivity() {
         currentFragment = fragment
 
         try {
+            // Clear back stack của các overlay fragments trước
+            clearOverlayBackStacks()
+            
             val transaction = supportFragmentManager.beginTransaction()
             
             // Hide tất cả các fragment khác đang hiển thị
@@ -281,14 +333,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             
-            // Cũng hide AI Chatbot nếu đang hiển thị
-            supportFragmentManager.findFragmentByTag("fragment_ai_chatbot")?.let { aiFragment ->
-                if (aiFragment.isAdded && !aiFragment.isHidden) {
-                    transaction.hide(aiFragment)
-                    // Pop back stack để clear AI chatbot từ stack
-                    supportFragmentManager.popBackStack("ai_chatbot", androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
-                }
-            }
+            // Hide tất cả các fragment phụ (AI Chatbot, Settings, About)
+            hideOverlayFragments(transaction)
             
             // Show hoặc add fragment được chọn
             if (fragment.isAdded) {
@@ -351,6 +397,38 @@ class MainActivity : AppCompatActivity() {
             if (pos != position) {
                 handler.post {
                     loadFragmentSafely(pos)
+                }
+            }
+        }
+    }
+    
+    /**
+     * Clear back stack của các overlay fragments
+     */
+    private fun clearOverlayBackStacks() {
+        val backStackNames = listOf("ai_chatbot", "settings", "about")
+        
+        for (backStackName in backStackNames) {
+            try {
+                if (supportFragmentManager.backStackEntryCount > 0) {
+                    supportFragmentManager.popBackStackImmediate(backStackName, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
+                }
+            } catch (e: Exception) {
+                // Ignore if back stack entry doesn't exist
+            }
+        }
+    }
+    
+    /**
+     * Hide tất cả các overlay fragment (AI Chatbot, Settings, About)
+     */
+    private fun hideOverlayFragments(transaction: androidx.fragment.app.FragmentTransaction) {
+        val overlayTags = listOf("fragment_ai_chatbot", "fragment_settings", "fragment_about")
+        
+        for (tag in overlayTags) {
+            supportFragmentManager.findFragmentByTag(tag)?.let { fragment ->
+                if (fragment.isAdded && !fragment.isHidden) {
+                    transaction.hide(fragment)
                 }
             }
         }
@@ -544,6 +622,78 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "Không thể mở Chat Bot AI", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun showSettingsFragment() {
+        // Kiểm tra activity còn valid không
+        if (isFinishing || isDestroyed) {
+            return
+        }
+        
+        // Kiểm tra fragment manager còn valid không
+        if (supportFragmentManager.isDestroyed) {
+            return
+        }
+        
+        try {
+            // Kiểm tra xem Settings đã mở chưa
+            val existingSettings = supportFragmentManager.findFragmentByTag("fragment_settings")
+            if (existingSettings != null && existingSettings.isVisible) {
+                return // Đã mở rồi
+            }
+            
+            val transaction = supportFragmentManager.beginTransaction()
+            transaction.setCustomAnimations(
+                android.R.anim.slide_in_left,
+                android.R.anim.slide_out_right,
+                android.R.anim.slide_in_left,
+                android.R.anim.slide_out_right
+            )
+            
+            // Hide tất cả các fragment đang hiển thị
+            for ((_, fragTag) in fragmentTags) {
+                supportFragmentManager.findFragmentByTag(fragTag)?.let { frag ->
+                    if (frag.isAdded && !frag.isHidden) {
+                        transaction.hide(frag)
+                    }
+                }
+            }
+            
+            // Cũng hide AI chatbot nếu đang hiển thị
+            supportFragmentManager.findFragmentByTag("fragment_ai_chatbot")?.let { aiFragment ->
+                if (aiFragment.isAdded && !aiFragment.isHidden) {
+                    transaction.hide(aiFragment)
+                }
+            }
+            
+            // Kiểm tra nếu Settings fragment đã tồn tại nhưng hidden
+            existingSettings?.let {
+                if (it.isAdded && it.isHidden) {
+                    transaction.show(it)
+                    transaction.addToBackStack("settings")
+                    if (!supportFragmentManager.isStateSaved) {
+                        transaction.commit()
+                    } else {
+                        transaction.commitAllowingStateLoss()
+                    }
+                    return
+                }
+            }
+            
+            // Tạo và add Settings fragment mới
+            val settingsFragment = SettingsFragment.newInstance()
+            transaction.add(R.id.fragmentContainer, settingsFragment, "fragment_settings")
+            transaction.addToBackStack("settings")
+            
+            if (!supportFragmentManager.isStateSaved) {
+                transaction.commit()
+            } else {
+                transaction.commitAllowingStateLoss()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Không thể mở Cài đặt", Toast.LENGTH_SHORT).show()
         }
     }
     
