@@ -2,6 +2,7 @@ package com.resq.resq_sos_mientrung_android
 
 import android.animation.ArgbEvaluator
 import android.animation.ValueAnimator
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -56,10 +57,14 @@ class MainActivity : AppCompatActivity() {
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+        // Đọc preference dark mode trước khi tạo view
+        val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val isDarkMode = prefs.getBoolean("dark_mode", true) // Default true
+        AppCompatDelegate.setDefaultNightMode(
+            if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
+        )
         
-        // Force dark mode as default for battery saving (priority for SOS app)
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+        super.onCreate(savedInstanceState)
         
         enableEdgeToEdge()
         binding = ActivityMainBinding.inflate(layoutInflater)

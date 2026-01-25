@@ -1,6 +1,8 @@
 package com.resq.resq_sos_mientrung_android.fragments
 
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -17,6 +19,9 @@ import com.resq.resq_sos_mientrung_android.databinding.FragmentSettingsBinding
 class SettingsFragment : Fragment() {
     private var _binding: FragmentSettingsBinding? = null
     private val binding get() = _binding!!
+    
+    private lateinit var prefs: SharedPreferences
+    private var isInitializing = true // Flag để tránh trigger listener khi khởi tạo
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -30,9 +35,14 @@ class SettingsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
+        prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        
         setupVersionInfo()
         setupClickListeners()
         setupSwitches()
+        
+        // Đánh dấu đã khởi tạo xong
+        isInitializing = false
     }
     
     private fun setupVersionInfo() {
@@ -48,16 +58,33 @@ class SettingsFragment : Fragment() {
     }
     
     private fun setupSwitches() {
-        // Dark Mode Switch
-        val currentNightMode = AppCompatDelegate.getDefaultNightMode()
-        binding.switchDarkMode.isChecked = currentNightMode == AppCompatDelegate.MODE_NIGHT_YES
+        // Dark Mode Switch - Đọc từ SharedPreferences
+        val isDarkMode = prefs.getBoolean("dark_mode", true) // Default true vì app mặc định dark mode
+        binding.switchDarkMode.isChecked = isDarkMode
         
         binding.switchDarkMode.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-            } else {
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-            }
+            // Bỏ qua nếu đang khởi tạo
+            if (isInitializing) return@setOnCheckedChangeListener
+            
+            // Lưu preference
+            prefs.edit().putBoolean("dark_mode", isChecked).apply()
+            
+            // Thông báo cho user
+            val message = if (isChecked) "Đã bật chế độ tối" else "Đã tắt chế độ tối"
+            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+            
+            // Chuyển dark mode một cách an toàn với delay nhỏ
+            view?.postDelayed({
+                try {
+                    if (isChecked) {
+                        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+                    } else {
+                        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }, 100)
         }
         
         // Notifications Switch - Default on
