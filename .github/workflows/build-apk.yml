@@ -39,24 +39,14 @@ jobs:
             echo "WEATHER_API_KEY=${{ secrets.WEATHER_API_KEY }}" >> local.properties
           fi
       
-      - name: Build debug APK
+      - name: Build APK
         run: ./gradlew assembleDebug --no-daemon
       
-      - name: Build release APK
-        run: ./gradlew assembleRelease --no-daemon
-      
-      - name: Upload debug APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
-      
-      - name: Upload release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-apk
-          path: app/build/outputs/apk/release/app-release.apk
           retention-days: 30
       
       - name: Upload build logs
