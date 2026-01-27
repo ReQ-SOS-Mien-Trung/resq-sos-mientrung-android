@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.75" />
+
+    <LinearLayout
+        android:id="@+id/layoutMessageBubble"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/message_bubble_received"
+        android:padding="12dp"
+        android:elevation="1dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/guideline">
+
+        <TextView
+            android:id="@+id/textSenderName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Người gửi"
+            android:textSize="11sp"
+            android:textColor="@color/orange_primary"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp"
+            android:visibility="visible" />
+
+        <TextView
+            android:id="@+id/textMessageContent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Tin nhắn"
+            android:textSize="14sp"
+            android:textColor="@color/message_text_received"
+            android:lineSpacingExtra="4dp" />
+
+        <TextView
+            android:id="@+id/textMessageTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="10:30"
+            android:textSize="10sp"
+            android:textColor="@color/message_time_received"
+            android:layout_marginTop="4dp"
+            android:layout_gravity="end" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

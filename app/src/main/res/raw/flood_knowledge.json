@@ -1,0 +1,123 @@
+{
+  "categories": [
+    {
+      "id": "first_aid",
+      "name": "Sơ cứu khi bị lũ",
+      "keywords": ["sơ cứu", "cứu hộ", "bị thương", "chấn thương", "cấp cứu", "sơ cứu", "giúp đỡ", "nguy hiểm"],
+      "answers": [
+        {
+          "question": "Làm gì khi bị thương trong lũ?",
+          "answer": "🆘 Sơ cứu khi bị thương trong lũ:\n\n1. Di chuyển đến nơi cao, khô ráo ngay lập tức\n2. Kiểm tra vết thương, cầm máu bằng băng gạc sạch\n3. Nếu bị dập nước, làm sạch vết thương bằng nước sạch\n4. Băng bó vết thương, tránh tiếp xúc với nước bẩn\n5. Tìm kiếm sự giúp đỡ từ đội cứu hộ hoặc người xung quanh\n6. Gọi số khẩn cấp: 115 (cấp cứu y tế)\n\n⚠️ Lưu ý: Nước lũ thường chứa nhiều vi khuẩn, cần xử lý vết thương cẩn thận."
+        },
+        {
+          "question": "Cách sơ cứu người bị đuối nước?",
+          "answer": "💧 Sơ cứu người bị đuối nước:\n\n1. Đưa nạn nhân lên bờ, đặt ở nơi an toàn\n2. Kiểm tra ý thức, gọi tên hoặc lay người\n3. Nếu bất tỉnh, kiểm tra nhịp thở và mạch\n4. Nếu không thở, thực hiện hô hấp nhân tạo (CPR)\n5. Đặt nạn nhân nằm nghiêng để tránh sặc\n6. Giữ ấm cơ thể bằng chăn hoặc quần áo khô\n7. Gọi cấp cứu ngay: 115\n\n⏱️ Thời gian vàng: 4-6 phút đầu sau khi đuối nước."
+        }
+      ]
+    },
+    {
+      "id": "evacuation",
+      "name": "Di dời an toàn",
+      "keywords": ["di dời", "sơ tán", "di chuyển", "rời khỏi", "đi nơi an toàn", "tránh lũ", "sơ tán"],
+      "answers": [
+        {
+          "question": "Khi nào cần di dời khỏi vùng lũ?",
+          "answer": "🚨 Di dời ngay khi:\n\n1. Nước lũ dâng cao, có nguy cơ ngập nhà\n2. Nhận được cảnh báo từ chính quyền\n3. Đường đi bị ngập, khó di chuyển\n4. Mưa lớn kéo dài, mực nước tăng nhanh\n5. Có dấu hiệu sạt lở đất, sụp đổ công trình\n\n⚠️ Không chờ đợi, di dời sớm để đảm bảo an toàn!"
+        },
+        {
+          "question": "Cách di dời an toàn khi có lũ?",
+          "answer": "🏃 Di dời an toàn:\n\n1. Chuẩn bị túi khẩn cấp: giấy tờ, tiền, thuốc, nước, thực phẩm\n2. Đi đến nơi cao, tránh xa sông suối\n3. Không đi qua vùng nước sâu, dòng chảy mạnh\n4. Mặc áo phao nếu có\n5. Đi theo nhóm, không đi một mình\n6. Tránh đi vào ban đêm, tầm nhìn kém\n7. Thông báo cho người thân biết vị trí\n\n📍 Tìm điểm sơ tán: trường học, nhà văn hóa, nơi cao ráo."
+        },
+        {
+          "question": "Cần mang theo gì khi di dời?",
+          "answer": "🎒 Túi khẩn cấp cần có:\n\n📄 Giấy tờ: CMND, bằng lái, bảo hiểm\n💊 Thuốc: thuốc đang dùng, thuốc cấp cứu\n💧 Nước uống: ít nhất 2-3 lít\n🍞 Thực phẩm: đồ khô, dễ bảo quản\n🔦 Đèn pin, pin dự phòng\n📱 Điện thoại, sạc dự phòng\n👕 Quần áo khô, chăn mỏng\n💰 Tiền mặt\n🔑 Chìa khóa nhà, xe\n\n⏱️ Chuẩn bị sẵn để di dời nhanh trong 5-10 phút."
+        }
+      ]
+    },
+    {
+      "id": "prevention",
+      "name": "Phòng chống lũ lụt",
+      "keywords": ["phòng chống", "chuẩn bị", "phòng ngừa", "tránh lũ", "bảo vệ", "chuẩn bị trước"],
+      "answers": [
+        {
+          "question": "Cách chuẩn bị trước khi có lũ?",
+          "answer": "🛡️ Chuẩn bị trước lũ:\n\n1. Theo dõi dự báo thời tiết thường xuyên\n2. Chuẩn bị túi khẩn cấp sẵn sàng\n3. Di chuyển đồ đạc, tài sản lên cao\n4. Kiểm tra hệ thống thoát nước\n5. Cắt điện, gas khi nước dâng cao\n6. Chuẩn bị nước sạch, thực phẩm dự trữ\n7. Lưu số điện thoại khẩn cấp\n8. Tham gia diễn tập sơ tán\n\n📱 Tải app cảnh báo thiên tai để nhận thông tin sớm."
+        },
+        {
+          "question": "Làm gì để bảo vệ nhà cửa khỏi lũ?",
+          "answer": "🏠 Bảo vệ nhà cửa:\n\n1. Đóng cửa sổ, cửa chính chặt chẽ\n2. Dùng bao cát chặn cửa, lỗ thoát nước\n3. Di chuyển đồ điện tử, tài liệu lên cao\n4. Cắt nguồn điện, gas trước khi nước vào\n5. Buộc chặt đồ đạc ngoài sân\n6. Kiểm tra mái nhà, tránh rò rỉ\n7. Chụp ảnh tài sản để bảo hiểm\n\n⚠️ Ưu tiên an toàn tính mạng, không cố gắng cứu đồ đạc khi nguy hiểm."
+        }
+      ]
+    },
+    {
+      "id": "emergency_contacts",
+      "name": "Số điện thoại khẩn cấp",
+      "keywords": ["số điện thoại", "khẩn cấp", "gọi", "liên hệ", "cứu hộ", "cấp cứu", "115", "113"],
+      "answers": [
+        {
+          "question": "Số điện thoại khẩn cấp khi có lũ?",
+          "answer": "📞 Số điện thoại khẩn cấp:\n\n🆘 115 - Cấp cứu y tế\n🚒 114 - Cứu hỏa\n🚔 113 - Cảnh sát\n📡 112 - Tổng đài khẩn cấp\n🌊 Ban chỉ huy phòng chống thiên tai địa phương\n\n💡 Lưu số vào danh bạ, ghi ra giấy để dùng khi mất điện thoại.\n\n⚠️ Chỉ gọi khi thực sự cần thiết, tránh làm tắc nghẽn đường dây."
+        },
+        {
+          "question": "Làm gì khi mất điện thoại trong lũ?",
+          "answer": "📱 Khi mất điện thoại:\n\n1. Tìm người xung quanh nhờ gọi giúp\n2. Đến điểm sơ tán, có điện thoại công cộng\n3. Tìm trạm cứu hộ gần nhất\n4. Dùng ứng dụng SOS trên thiết bị khác\n5. Liên hệ qua radio nếu có\n\n💡 Nên ghi số điện thoại người thân ra giấy, đặt trong túi khẩn cấp."
+        }
+      ]
+    },
+    {
+      "id": "rescue_resources",
+      "name": "Nguồn cứu trợ",
+      "keywords": ["cứu trợ", "hỗ trợ", "viện trợ", "giúp đỡ", "tìm kiếm", "cứu hộ", "đội cứu hộ"],
+      "answers": [
+        {
+          "question": "Làm sao để tìm kiếm cứu trợ khi bị lũ?",
+          "answer": "🆘 Tìm kiếm cứu trợ:\n\n1. Gọi số khẩn cấp: 115, 114, 113\n2. Đến điểm sơ tán gần nhất\n3. Liên hệ Ban chỉ huy phòng chống thiên tai địa phương\n4. Sử dụng ứng dụng ResQ SOS để gửi tín hiệu cứu hộ\n5. Tìm đội cứu hộ qua radio hoặc loa phát thanh\n6. Ra hiệu bằng cờ, đèn, khói nếu bị cô lập\n\n📍 Điểm sơ tán thường ở: trường học, nhà văn hóa, trung tâm xã/phường."
+        },
+        {
+          "question": "Các tổ chức cứu trợ khi có lũ?",
+          "answer": "🤝 Tổ chức cứu trợ:\n\n🏛️ Ủy ban Mặt trận Tổ quốc địa phương\n🏥 Hội Chữ thập đỏ Việt Nam\n⛪ Các tổ chức tôn giáo\n🏢 Doanh nghiệp, nhà hảo tâm\n🌍 Tổ chức quốc tế: UNICEF, Red Cross\n\n📞 Liên hệ qua Ban chỉ huy phòng chống thiên tai để được hỗ trợ."
+        }
+      ]
+    },
+    {
+      "id": "warning_signs",
+      "name": "Dấu hiệu cảnh báo",
+      "keywords": ["dấu hiệu", "cảnh báo", "nguy hiểm", "nhận biết", "triệu chứng", "báo hiệu"],
+      "answers": [
+        {
+          "question": "Dấu hiệu nào cho thấy sắp có lũ?",
+          "answer": "⚠️ Dấu hiệu cảnh báo lũ:\n\n🌧️ Mưa lớn kéo dài nhiều ngày\n💧 Mực nước sông, suối dâng cao nhanh\n🌊 Nước đổi màu, có bọt, mùi lạ\n🏔️ Đất đá rơi, sạt lở bắt đầu\n🌳 Cây cối nghiêng, gốc lỏng lẻo\n🏠 Nước ngấm vào nhà, đường phố\n📡 Nhận cảnh báo từ cơ quan chức năng\n\n🚨 Khi thấy các dấu hiệu này, chuẩn bị di dời ngay!"
+        },
+        {
+          "question": "Khi nào lũ trở nên nguy hiểm?",
+          "answer": "🔴 Lũ nguy hiểm khi:\n\n1. Nước dâng cao quá 1m trong nhà\n2. Dòng chảy mạnh, có vật trôi nổi\n3. Điện bị cắt, mất liên lạc\n4. Đường đi bị ngập hoàn toàn\n5. Có mùi gas, hóa chất trong nước\n6. Công trình bắt đầu sụp đổ\n7. Không thể di chuyển an toàn\n\n⚠️ Lúc này cần tìm nơi cao nhất trong nhà, gọi cứu hộ ngay!"
+        }
+      ]
+    },
+    {
+      "id": "general",
+      "name": "Thông tin chung",
+      "keywords": ["thông tin", "hỏi", "giúp", "hướng dẫn", "làm gì", "như thế nào"],
+      "answers": [
+        {
+          "question": "Tôi cần giúp đỡ về lũ lụt",
+          "answer": "🆘 Tôi có thể giúp bạn về:\n\n💧 Sơ cứu khi bị lũ\n🏃 Di dời an toàn\n🛡️ Phòng chống lũ lụt\n📞 Số điện thoại khẩn cấp\n🤝 Tìm kiếm cứu trợ\n⚠️ Dấu hiệu cảnh báo\n\nHãy hỏi tôi cụ thể về vấn đề bạn đang gặp phải!"
+        },
+        {
+          "question": "Xin chào",
+          "answer": "👋 Xin chào! Tôi là Chat Bot AI hỗ trợ về lũ lụt.\n\nTôi có thể giúp bạn:\n• Sơ cứu và an toàn\n• Di dời khẩn cấp\n• Phòng chống lũ\n• Thông tin cứu trợ\n• Số điện thoại khẩn cấp\n\nHãy hỏi tôi bất cứ điều gì về lũ lụt!"
+        },
+        {
+          "question": "Cảm ơn",
+          "answer": "🙏 Không có gì! Tôi luôn sẵn sàng giúp đỡ bạn.\n\nNếu bạn cần thêm thông tin về lũ lụt, hãy hỏi tôi bất cứ lúc nào. Hãy giữ an toàn! 🛡️"
+        }
+      ]
+    }
+  ],
+  "fallback_responses": [
+    "Tôi hiểu bạn đang lo lắng. Hãy cho tôi biết cụ thể hơn về vấn đề bạn gặp phải?",
+    "Tôi chưa hiểu rõ câu hỏi của bạn. Bạn có thể hỏi về:\n• Sơ cứu khi bị lũ\n• Cách di dời an toàn\n• Phòng chống lũ lụt\n• Số điện thoại khẩn cấp\n• Tìm kiếm cứu trợ",
+    "Xin lỗi, tôi chưa có thông tin chi tiết về điều này. Hãy liên hệ số khẩn cấp 115 hoặc đến điểm sơ tán gần nhất để được hỗ trợ.",
+    "Bạn có thể hỏi tôi về:\n🆘 Sơ cứu\n🏃 Di dời\n🛡️ Phòng chống\n📞 Số khẩn cấp\n🤝 Cứu trợ\n\nHãy đặt câu hỏi cụ thể hơn nhé!"
+  ]
+}

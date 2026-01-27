@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/orange_background"
+    android:fitsSystemWindows="false">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayoutAIChatbot"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="@color/nav_background"
+        android:elevation="4dp"
+        app:elevation="0dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:id="@+id/layoutTitleAIChatbot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_ai_assistant"
+                    app:tint="@color/orange_primary"
+                    android:layout_marginEnd="12dp" />
+
+                <TextView
+                    android:id="@+id/titleAIChatbot"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Chat Bot AI"
+                    android:textSize="22sp"
+                    android:textColor="@color/orange_primary"
+                    android:textStyle="bold"
+                    android:fontFamily="sans-serif-medium" />
+
+                <ProgressBar
+                    android:id="@+id/progressBarAI"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:indeterminateTint="@color/orange_primary"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/textAISubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Hỏi tôi về lũ lụt, sơ cứu, và an toàn"
+                android:textSize="12sp"
+                android:textColor="@color/nav_unselected"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <LinearLayout
+        android:id="@+id/layoutMessageInput"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:background="@color/nav_background"
+        android:elevation="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <EditText
+            android:id="@+id/editTextMessage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Hỏi về lũ lụt, sơ cứu..."
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:background="@drawable/message_input_background"
+            android:textColorHint="@color/message_input_hint"
+            android:textColor="@color/message_input_text"
+            android:textSize="14sp"
+            android:maxLines="3"
+            android:minHeight="48dp"
+            android:gravity="center_vertical"
+            android:imeOptions="actionSend"
+            android:inputType="textCapSentences|textMultiLine" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/buttonSend"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:src="@android:drawable/ic_menu_send"
+            android:contentDescription="Gửi tin nhắn"
+            app:tint="@color/white"
+            app:backgroundTint="@color/orange_primary"
+            app:fabSize="normal"
+            app:elevation="4dp" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewMessages"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:clipToPadding="false"
+        android:scrollbars="vertical"
+        app:layout_constraintTop_toBottomOf="@id/appBarLayoutAIChatbot"
+        app:layout_constraintBottom_toTopOf="@id/layoutMessageInput"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/layoutEmptyState"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp"
+        android:visibility="visible"
+        app:layout_constraintTop_toBottomOf="@id/appBarLayoutAIChatbot"
+        app:layout_constraintBottom_toTopOf="@id/layoutMessageInput"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageView
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:src="@drawable/ic_ai_assistant"
+            android:tint="@color/nav_unselected"
+            android:alpha="0.5"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:id="@+id/textEmptyTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Xin chào! 👋"
+            android:textSize="20sp"
+            android:textColor="@color/orange_primary"
+            android:gravity="center"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/textEmptySubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Tôi là Chat Bot AI, sẵn sàng giúp bạn về lũ lụt"
+            android:textSize="14sp"
+            android:textColor="@color/nav_unselected"
+            android:gravity="center"
+            android:layout_marginTop="12dp"
+            android:alpha="0.7" />
+
+        <TextView
+            android:id="@+id/textSuggestedQuestions"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Câu hỏi gợi ý:"
+            android:textSize="14sp"
+            android:textColor="@color/orange_primary"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginTop="24dp" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerViewSuggestions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:nestedScrollingEnabled="false" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

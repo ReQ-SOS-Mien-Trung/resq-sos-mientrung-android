@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,9 +7,7 @@ plugins {
 
 android {
     namespace = "com.resq.resq_sos_mientrung_android"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.resq.resq_sos_mientrung_android"
@@ -17,8 +17,33 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // Fix for AAR metadata issues
+        multiDexEnabled = true
+        
+        // Load API keys from local.properties (not committed to Git)
+        val localPropertiesFile = rootProject.file("local.properties")
+        val properties = if (localPropertiesFile.exists()) {
+            val props = Properties()
+            localPropertiesFile.inputStream().use { props.load(it) }
+            props
+        } else {
+            Properties()
+        }
+        
+        val geminiApiKey = properties.getProperty("GEMINI_API_KEY", "") ?: ""
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        
+        val weatherApiKey = properties.getProperty("WEATHER_API_KEY", "") ?: ""
+        buildConfigField("String", "WEATHER_API_KEY", "\"$weatherApiKey\"")
+        
+        // Support for 16 KB page size devices (Android 15+)
+        // This helps with compatibility warning for native libraries
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
     }
-
+    
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -29,14 +54,40 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
+    }
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/DEPENDENCIES"
+            excludes += "/META-INF/LICENSE"
+            excludes += "/META-INF/LICENSE.txt"
+            excludes += "/META-INF/license.txt"
+            excludes += "/META-INF/NOTICE"
+            excludes += "/META-INF/NOTICE.txt"
+            excludes += "/META-INF/notice.txt"
+            excludes += "/META-INF/ASL2.0"
+            excludes += "/META-INF/*.kotlin_module"
+        }
+        
+        // Note: 16 KB page size warning is from Bridgefy SDK's native libraries
+        // This is a known issue with libsignal_jni.so
+        // The warning can be ignored for now, but should be fixed by Bridgefy SDK update
+        // App will still work on most devices (only affects some Android 15+ devices with 16KB pages)
+    }
+    
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 }
 
@@ -47,8 +98,42 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.fragment.ktx)
+    implementation(libs.androidx.recyclerview)
+    implementation(libs.androidx.multidex)
     implementation(libs.play.services.maps)
     implementation(libs.play.services.location)
+    implementation(libs.camerax.core)
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.view)
+    
+    // Gemini API
+    implementation(libs.google.generative.ai)
+    
+    // Weather API
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.gson)
+    implementation(libs.gson)
+    implementation(libs.okhttp)
+    
+    // Coroutines for async operations
+    implementation(libs.kotlinx.coroutines.android)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    
+    coreLibraryDesugaring(libs.androidx.desugar.jdk.libs)
+    
+    // Bridgefy SDK
+    // Option 1: From Maven repository (if available)
+    implementation(group = "me.bridgefy", name = "android-sdk", version = "1.2.3", ext = "aar") {
+        isTransitive = true
+    }
+    
+    // Signal Protocol is included as transitive dependency of Bridgefy SDK
+    
+    // Option 2: From local libs folder (uncomment if you have the AAR file)
+    // Uncomment the line below and place bridgefy-sdk.aar in app/libs/ folder
+    // implementation(files("libs/bridgefy-sdk.aar"))
+    
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

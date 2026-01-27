@@ -4,13 +4,55 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
+import android.widget.TextView
+import android.widget.Toast
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.resq.resq_sos_mientrung_android.R
+import com.resq.resq_sos_mientrung_android.bridgefy.BridgefyManager
+import com.resq.resq_sos_mientrung_android.bridgefy.Message
+import com.resq.resq_sos_mientrung_android.bridgefy.User
 import com.resq.resq_sos_mientrung_android.databinding.FragmentChatBinding
+import org.json.JSONObject
 
-class ChatFragment : Fragment() {
+class ChatFragment : Fragment(), BridgefyManager.BridgefyListener {
     private var _binding: FragmentChatBinding? = null
     private val binding get() = _binding!!
-
+    
+    private lateinit var bridgefyManager: BridgefyManager
+    private val messagesAdapter = MessagesAdapter()
+    private val messages = mutableListOf<ChatMessage>()
+    
+    // null = broadcast mode, non-null = private chat with specific user
+    private var selectedUserId: String? = null
+    private var selectedUserDisplayName: String? = null
+    private var isBroadcastMode: Boolean = true
+    
+    // Cache mapping userId -> displayName
+    private val userDisplayNames = mutableMapOf<String, String>()
+    
+    // Keyboard listener để scroll khi bàn phím hiện
+    private var keyboardLayoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
+    
+    // Window insets listeners để có thể remove khi destroy
+    private var inputInsetsListener: androidx.core.view.OnApplyWindowInsetsListener? = null
+    private var recyclerInsetsListener: androidx.core.view.OnApplyWindowInsetsListener? = null
+    
+    data class ChatMessage(
+        val id: String,
+        val content: String,
+        val userId: String, // ID của người gửi tin nhắn
+        val senderName: String, // Tên hiển thị của người gửi
+        val timestamp: Long,
+        val isSent: Boolean,
+        val isBroadcast: Boolean = false,
+        val targetUserId: String? = null // ID người nhận (cho tin nhắn riêng)
+    )
+    
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -22,11 +64,808 @@ class ChatFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        binding.textChat.text = "Chat"
+        
+        bridgefyManager = BridgefyManager.getInstance(requireContext())
+        bridgefyManager.addListener(this)
+        
+        setupRecyclerView()
+        setupSendButton()
+        setupChatModeUI()
+        setupKeyboardListener()
+        setupWindowInsets()
+        updateBridgefyStatus()
+        
+        // Periodically check status (every 500ms) until initialized
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        val statusChecker = object : Runnable {
+            override fun run() {
+                if (!bridgefyManager.isInitialized()) {
+                    updateBridgefyStatus()
+                    handler.postDelayed(this, 500)
+                } else {
+                    updateBridgefyStatus()
+                    updateUserCount()
+                }
+            }
+        }
+        handler.post(statusChecker)
+        
+        // Periodically update user count
+        val userCountChecker = object : Runnable {
+            override fun run() {
+                if (isAdded && _binding != null) {
+                    updateUserCount()
+                    handler.postDelayed(this, 2000)
+                }
+            }
+        }
+        handler.postDelayed(userCountChecker, 2000)
+        
+        updateMessagesList()
+    }
+    
+    private fun setupChatModeUI() {
+        // Default to broadcast mode
+        setBroadcastMode()
+        
+        // Click on chat mode layout to toggle or show options
+        binding.layoutChatMode.setOnClickListener {
+            if (!isBroadcastMode) {
+                // Currently in private mode, switch to broadcast
+                setBroadcastMode()
+            }
+            // If already in broadcast mode, do nothing (users click from UsersFragment to go private)
+        }
+        
+        // Clear private chat button
+        binding.buttonClearPrivateChat.setOnClickListener {
+            setBroadcastMode()
+        }
+    }
+    
+    private fun setBroadcastMode() {
+        isBroadcastMode = true
+        selectedUserId = null
+        selectedUserDisplayName = null
+        
+        binding.iconChatMode.setImageResource(R.drawable.ic_broadcast)
+        binding.textChatMode.text = "Broadcast - Gửi tới tất cả"
+        binding.buttonClearPrivateChat.visibility = View.GONE
+        
+        updateUserCount()
+        updateMessagesList()
+        
+        android.util.Log.d("ChatFragment", "Switched to BROADCAST mode")
+    }
+    
+    fun setPrivateChatMode(userId: String, displayName: String? = null) {
+        android.util.Log.d("ChatFragment", "Setting private chat mode with userId: $userId, displayName: $displayName")
+        isBroadcastMode = false
+        selectedUserId = userId
+        selectedUserDisplayName = displayName ?: userDisplayNames[userId]
+        
+        binding.iconChatMode.setImageResource(R.drawable.ic_person)
+        
+        // Hiển thị tên thân thiện thay vì userId
+        val friendlyName = selectedUserDisplayName ?: run {
+            if (userId.length > 8) "${userId.take(8)}..." else userId
+        }
+        binding.textChatMode.text = "Chat riêng với: $friendlyName"
+        binding.buttonClearPrivateChat.visibility = View.VISIBLE
+        binding.textUserCount.text = "1 người"
+        
+        android.util.Log.d("ChatFragment", "Private mode set - isBroadcastMode: $isBroadcastMode, selectedUserId: $selectedUserId")
+        updateMessagesList()
+        
+        android.util.Log.d("ChatFragment", "Switched to PRIVATE mode with user: $userId ($friendlyName)")
+    }
+    
+    private fun updateUserCount() {
+        if (!isAdded || _binding == null) return
+        
+        if (isBroadcastMode) {
+            val nearbyUsers = bridgefyManager.getNearbyUsers()
+            binding.textUserCount.text = "${nearbyUsers.size} người"
+        }
+    }
+    
+    private fun updateBridgefyStatus() {
+        if (bridgefyManager.isInitialized()) {
+            binding.statusIndicatorChat.setBackgroundResource(R.drawable.bridgefy_status_indicator_active)
+            binding.textBridgefyStatusChat.text = "Đang hoạt động"
+            binding.textBridgefyStatusChat.setTextColor(requireContext().getColor(R.color.nav_selected))
+        } else {
+            binding.statusIndicatorChat.setBackgroundResource(R.drawable.bridgefy_status_indicator)
+            binding.textBridgefyStatusChat.text = "Đang khởi động..."
+            binding.textBridgefyStatusChat.setTextColor(requireContext().getColor(R.color.nav_unselected))
+        }
+    }
+    
+    private fun setupRecyclerView() {
+        binding.recyclerViewMessages.layoutManager = LinearLayoutManager(requireContext())
+        binding.recyclerViewMessages.adapter = messagesAdapter
+    }
+    
+    private fun setupSendButton() {
+        binding.buttonSend.setOnClickListener {
+            val messageText = binding.editTextMessage.text.toString().trim()
+            if (messageText.isEmpty()) return@setOnClickListener
+            
+            android.util.Log.d("ChatFragment", "Send button clicked - isBroadcastMode: $isBroadcastMode, selectedUserId: $selectedUserId")
+            
+            if (isBroadcastMode) {
+                // BROADCAST MODE - send to all nearby users
+                android.util.Log.d("ChatFragment", "Sending BROADCAST message")
+                sendBroadcastMessage(messageText)
+            } else {
+                // PRIVATE MODE - send to specific user
+                android.util.Log.d("ChatFragment", "Sending PRIVATE message to: $selectedUserId")
+                sendPrivateMessage(messageText)
+            }
+        }
+    }
+    
+    private fun setupKeyboardListener() {
+        // Scroll to bottom when keyboard appears or when EditText gets focus
+        binding.editTextMessage.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                // Delay scroll to ensure layout has adjusted
+                binding.recyclerViewMessages.postDelayed({
+                    scrollToBottom()
+                }, 300)
+            }
+        }
+        
+        // Also scroll when user starts typing
+        binding.editTextMessage.setOnClickListener {
+            binding.recyclerViewMessages.postDelayed({
+                scrollToBottom()
+            }, 300)
+        }
+        
+        // Listen for window insets changes (keyboard show/hide)
+        keyboardLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+            val rootView = binding.root.rootView
+            val rootHeight = rootView.height
+            val viewHeight = binding.root.height
+            val heightDiff = rootHeight - viewHeight
+            
+            // If height difference is more than 200dp, keyboard is probably visible
+            if (heightDiff > 200) {
+                // Bàn phím hiện, scroll đến cuối và đảm bảo input visible
+                binding.recyclerViewMessages.postDelayed({
+                    scrollToBottom()
+                    // Đảm bảo EditText được scroll vào view
+                    binding.editTextMessage.requestFocus()
+                }, 200)
+            }
+        }
+        binding.root.viewTreeObserver.addOnGlobalLayoutListener(keyboardLayoutListener)
+    }
+    
+    private fun scrollToBottom() {
+        if (messages.isNotEmpty()) {
+            binding.recyclerViewMessages.scrollToPosition(messages.size - 1)
+        }
+    }
+    
+    private fun setupWindowInsets() {
+        // Xử lý window insets để đảm bảo input area không bị che nhưng vẫn sát bàn phím
+        inputInsetsListener = androidx.core.view.OnApplyWindowInsetsListener { v, insets ->
+            if (_binding == null) return@OnApplyWindowInsetsListener insets
+            
+            val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+            val layoutParams = v.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+            
+            if (imeInsets.bottom > 0) {
+                // Bàn phím hiện - chỉ thêm một khoảng cách nhỏ (4dp) để không bị che nhưng vẫn sát
+                val smallMargin = (4 * resources.displayMetrics.density).toInt()
+                layoutParams?.bottomMargin = smallMargin
+                v.layoutParams = layoutParams
+                
+                // Scroll đến cuối khi bàn phím hiện - kiểm tra binding trước
+                _binding?.recyclerViewMessages?.postDelayed({
+                    if (_binding != null) {
+                        scrollToBottom()
+                    }
+                }, 200)
+            } else {
+                // Bàn phím ẩn - reset margin về 0
+                layoutParams?.bottomMargin = 0
+                v.layoutParams = layoutParams
+            }
+            
+            insets
+        }
+        
+        ViewCompat.setOnApplyWindowInsetsListener(binding.layoutMessageInput, inputInsetsListener)
+        
+        // Đảm bảo RecyclerView scroll khi bàn phím hiện
+        recyclerInsetsListener = androidx.core.view.OnApplyWindowInsetsListener { v, insets ->
+            if (_binding == null) return@OnApplyWindowInsetsListener insets
+            
+            val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+            
+            if (imeInsets.bottom > 0) {
+                // Bàn phím hiện, scroll đến cuối - kiểm tra binding trước
+                _binding?.recyclerViewMessages?.postDelayed({
+                    if (_binding != null) {
+                        scrollToBottom()
+                    }
+                }, 200)
+            }
+            
+            insets
+        }
+        
+        ViewCompat.setOnApplyWindowInsetsListener(binding.recyclerViewMessages, recyclerInsetsListener)
+    }
+    
+    private fun sendBroadcastMessage(messageText: String) {
+        val nearbyUsers = bridgefyManager.getNearbyUsers()
+        
+        if (nearbyUsers.isEmpty()) {
+            Toast.makeText(
+                requireContext(),
+                "Chưa có người dùng nào gần đây để gửi broadcast.",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+        
+        val messageIds = bridgefyManager.sendBroadcastMessage(messageText)
+        
+        if (messageIds.isNotEmpty()) {
+            // Add broadcast message to local list
+            val chatMessage = ChatMessage(
+                id = messageIds.first(), // Use first ID as reference
+                content = messageText,
+                userId = "me", // Đánh dấu tin nhắn do mình gửi
+                senderName = bridgefyManager.myDeviceName, // Tên của mình
+                timestamp = System.currentTimeMillis(),
+                isSent = true,
+                isBroadcast = true,
+                targetUserId = null // Broadcast không có target cụ thể
+            )
+            messages.add(chatMessage)
+            updateMessagesList()
+            binding.editTextMessage.text?.clear()
+            
+            Toast.makeText(
+                requireContext(),
+                "Đã gửi tới ${nearbyUsers.size} người",
+                Toast.LENGTH_SHORT
+            ).show()
+        } else {
+            Toast.makeText(
+                requireContext(),
+                "Không thể gửi tin nhắn broadcast. Vui lòng thử lại.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+    
+    private fun sendPrivateMessage(messageText: String) {
+        if (selectedUserId == null) {
+            android.util.Log.e("ChatFragment", "Cannot send private message: selectedUserId is null")
+            Toast.makeText(
+                requireContext(),
+                "Chưa chọn người dùng để nhắn tin.",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+        
+        android.util.Log.d("ChatFragment", "Sending private message to userId: $selectedUserId, content: $messageText")
+        val messageId = bridgefyManager.sendMessage(selectedUserId!!, messageText)
+        
+        if (messageId != null) {
+            android.util.Log.d("ChatFragment", "Private message sent successfully with ID: $messageId")
+            // Add message to local list optimistically
+            // userId = "me" để đánh dấu tin nhắn này do mình gửi
+            // targetUserId = selectedUserId để biết gửi cho ai
+            val chatMessage = ChatMessage(
+                id = messageId,
+                content = messageText,
+                userId = "me", // Đánh dấu tin nhắn do mình gửi
+                senderName = bridgefyManager.myDeviceName, // Tên của mình
+                timestamp = System.currentTimeMillis(),
+                isSent = true,
+                isBroadcast = false, // Đảm bảo đánh dấu là tin nhắn riêng
+                targetUserId = selectedUserId // Lưu ID người nhận
+            )
+            messages.add(chatMessage)
+            android.util.Log.d("ChatFragment", "Added private message to list. Total messages: ${messages.size}")
+            updateMessagesList()
+            binding.editTextMessage.text?.clear()
+        } else {
+            android.util.Log.e("ChatFragment", "Failed to send private message to: $selectedUserId")
+            Toast.makeText(
+                requireContext(),
+                "Không thể gửi tin nhắn. Vui lòng thử lại.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+    
+    private fun updateMessagesList() {
+        // Filter messages based on current mode
+        val filteredMessages = when {
+            isBroadcastMode -> {
+                // In broadcast mode, show ONLY broadcast messages (not private messages)
+                val filtered = messages.filter { message -> message.isBroadcast }
+                android.util.Log.d("ChatFragment", "Broadcast mode: showing ${filtered.size} broadcast messages from ${messages.size} total")
+                filtered
+            }
+            selectedUserId != null -> {
+                // In private mode, show only messages from/to this user
+                // - Messages sent TO this user (isSent = true, targetUserId = selectedUserId)
+                // - Messages received FROM this user (isSent = false, userId = selectedUserId)
+                val filtered = messages.filter { message ->
+                    // Must not be a broadcast message
+                    if (message.isBroadcast) {
+                        false
+                    } else {
+                        // For sent messages: targetUserId should match selectedUserId (người nhận)
+                        // For received messages: userId should match selectedUserId (người gửi)
+                        val matches = if (message.isSent) {
+                            // Tin nhắn do mình gửi: kiểm tra targetUserId
+                            message.targetUserId == selectedUserId
+                        } else {
+                            // Tin nhắn nhận được: kiểm tra userId (người gửi)
+                            message.userId == selectedUserId
+                        }
+                        if (!matches) {
+                            android.util.Log.d("ChatFragment", "Message filtered out: userId=${message.userId}, targetUserId=${message.targetUserId}, selectedUserId=$selectedUserId, isSent=${message.isSent}, isBroadcast=${message.isBroadcast}")
+                        }
+                        matches
+                    }
+                }
+                android.util.Log.d("ChatFragment", "Private mode: filtered ${filtered.size} messages from ${messages.size} total (selectedUserId: $selectedUserId)")
+                filtered
+            }
+            else -> {
+                android.util.Log.d("ChatFragment", "No mode set: showing all ${messages.size} messages")
+                messages.toList()
+            }
+        }
+        
+        if (filteredMessages.isEmpty()) {
+            binding.layoutEmptyStateChat.visibility = View.VISIBLE
+            binding.recyclerViewMessages.visibility = View.GONE
+            
+            // Update empty state text based on mode
+            if (isBroadcastMode) {
+                binding.textNoMessages.text = "Chưa có tin nhắn"
+                binding.textEmptySubtitleChat.text = "Gửi tin nhắn broadcast tới tất cả người dùng gần đây"
+            } else {
+                binding.textNoMessages.text = "Chưa có tin nhắn"
+                binding.textEmptySubtitleChat.text = "Bắt đầu cuộc trò chuyện với người dùng này"
+            }
+        } else {
+            binding.layoutEmptyStateChat.visibility = View.GONE
+            binding.recyclerViewMessages.visibility = View.VISIBLE
+            messagesAdapter.submitList(filteredMessages)
+            binding.recyclerViewMessages.scrollToPosition(filteredMessages.size - 1)
+        }
+    }
+    
+    // BridgefyListener callbacks
+    override fun onBridgefyStart() {
+        android.util.Log.d("ChatFragment", "Bridgefy đã khởi động thành công!")
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            updateBridgefyStatus()
+            updateUserCount()
+            Toast.makeText(
+                requireContext(),
+                "Bridgefy đã sẵn sàng! Có thể nhắn tin offline.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+    
+    override fun onBridgefyStartError(error: String) {
+        android.util.Log.e("ChatFragment", "Lỗi khởi động Bridgefy: $error")
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            updateBridgefyStatus()
+            binding.statusIndicatorChat.setBackgroundResource(R.drawable.bridgefy_status_indicator)
+            binding.textBridgefyStatusChat.text = "Lỗi: $error"
+            binding.textBridgefyStatusChat.setTextColor(requireContext().getColor(android.R.color.holo_red_dark))
+            Toast.makeText(
+                requireContext(),
+                "Lỗi khởi động Bridgefy: $error",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+    
+    override fun onUserFound(user: User) {
+        android.util.Log.d("ChatFragment", "Tìm thấy người dùng: ${user.userId}")
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            updateUserCount()
+        }
+    }
+    
+    override fun onUserLost(user: User) {
+        android.util.Log.d("ChatFragment", "Mất kết nối với người dùng: ${user.userId}")
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            updateUserCount()
+            
+            // If we're in private chat with this user, notify
+            if (!isBroadcastMode && selectedUserId == user.userId) {
+                Toast.makeText(
+                    requireContext(),
+                    "Người dùng đã ngắt kết nối",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+    
+    override fun onMessageReceived(message: Message, user: User) {
+        android.util.Log.d("ChatFragment", "Nhận tin nhắn từ ${user.userId}: ${message.content}")
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            try {
+                // Thử parse JSON - hỗ trợ cả format Android và iPhone
+                val messageData = JSONObject(message.content)
+                
+                // Hỗ trợ cả "text" (iPhone) và "content" (Android)
+                val content = when {
+                    messageData.has("text") -> messageData.getString("text")
+                    messageData.has("content") -> messageData.getString("content")
+                    else -> message.content // Fallback về raw content nếu không có cả hai
+                }
+                
+                // Lấy timestamp - hỗ trợ cả số nguyên và số thập phân
+                val timestamp = try {
+                    val tsValue = messageData.opt("timestamp")
+                    when (tsValue) {
+                        is Number -> tsValue.toLong()
+                        is String -> tsValue.toLongOrNull() ?: System.currentTimeMillis()
+                        else -> System.currentTimeMillis()
+                    }
+                } catch (e: Exception) {
+                    System.currentTimeMillis()
+                }
+                
+                val type = messageData.optString("type", "private")
+                
+                // Lấy senderName - ưu tiên từ JSON, sau đó từ user object
+                val senderName = messageData.optString("senderName", "").ifBlank {
+                    messageData.optString("name", "") // Một số format có thể dùng "name"
+                }
+                
+                // Lưu mapping userId -> displayName
+                if (senderName.isNotBlank()) {
+                    userDisplayNames[user.userId] = senderName
+                }
+                
+                // Xác định displayName: ưu tiên senderName từ JSON, sau đó user.displayName, cuối cùng là userId rút gọn
+                val displayName = senderName.ifBlank { 
+                    user.displayName.ifBlank { 
+                        user.getDisplayNameOrShortId()
+                    }
+                }
+                
+                // ⭐ CRITICAL: Xác định broadcast message dựa trên recipientId
+                // Nếu recipientId không có hoặc null -> đây là broadcast message
+                // Nếu recipientId có giá trị -> đây là private message
+                val recipientId = messageData.optString("recipientId", null)
+                val isBroadcastMessage = recipientId.isNullOrBlank()
+                
+                // QUAN TRỌNG: Luôn dùng user.userId (SDK UUID) làm định danh người gửi
+                // vì đây là ID nhất quán với danh sách getNearbyUsers() và selectedUserId
+                // senderId trong JSON có thể là ANDROID_ID (không khớp với SDK UUID)
+                val actualSenderId = user.userId
+                
+                // Lấy senderId từ JSON (người gửi tin nhắn)
+                val senderIdFromJson = messageData.optString("senderId", null)
+                
+                android.util.Log.d("ChatFragment", "Received message - actualSenderId (SDK): $actualSenderId, senderIdFromJson: $senderIdFromJson, recipientId: $recipientId, isBroadcast: $isBroadcastMessage, current mode: ${if (isBroadcastMode) "broadcast" else "private"}, selectedUserId: $selectedUserId")
+                
+                val chatMessage = ChatMessage(
+                    id = message.messageId,
+                    content = content,
+                    userId = actualSenderId, // Dùng SDK UUID của người gửi
+                    senderName = displayName,
+                    timestamp = timestamp,
+                    isSent = false,
+                    isBroadcast = isBroadcastMessage,
+                    targetUserId = recipientId // Lưu recipientId (người nhận) vào targetUserId
+                )
+                
+                messages.add(chatMessage)
+                android.util.Log.d("ChatFragment", "Added received message to list. Total messages: ${messages.size}")
+                updateMessagesList()
+                
+                // Show notification if not currently viewing this conversation
+                if (isBroadcastMode || selectedUserId != user.userId) {
+                    Toast.makeText(
+                        requireContext(),
+                        "Tin nhắn mới từ $displayName",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } catch (e: org.json.JSONException) {
+                // Nếu không parse được JSON, có thể là:
+                // 1. JSON string bị escape
+                // 2. Plain text message
+                // 3. JSON string trong string (double encoded)
+                android.util.Log.w("ChatFragment", "Không parse được JSON, thử các cách khác: ${e.message}")
+                
+                var parsed = false
+                
+                // Thử 1: Kiểm tra xem có phải là JSON string bị escape không
+                if (message.content.trim().startsWith("{") && message.content.trim().endsWith("}")) {
+                    try {
+                        // Có thể là JSON nhưng có vấn đề với format, thử parse lại với trim
+                        val trimmed = message.content.trim()
+                        val messageData = JSONObject(trimmed)
+                        val content = when {
+                            messageData.has("text") -> messageData.getString("text")
+                            messageData.has("content") -> messageData.getString("content")
+                            else -> trimmed
+                        }
+                        val senderName = messageData.optString("senderName", "")
+                        
+                        if (senderName.isNotBlank()) {
+                            userDisplayNames[user.userId] = senderName
+                        }
+                        
+                        val displayName = senderName.ifBlank { 
+                            user.getDisplayNameOrShortId()
+                        }
+                        
+                        val timestamp = try {
+                            messageData.opt("timestamp")?.let {
+                                if (it is Number) it.toLong() else System.currentTimeMillis()
+                            } ?: System.currentTimeMillis()
+                        } catch (e: Exception) {
+                            System.currentTimeMillis()
+                        }
+                        
+                        // Luôn dùng user.userId (SDK UUID) làm định danh người gửi
+                        // ⭐ Kiểm tra recipientId để xác định broadcast
+                        val recipientId2 = messageData.optString("recipientId", null)
+                        val isBroadcast2 = recipientId2.isNullOrBlank()
+                        
+                        val chatMessage = ChatMessage(
+                            id = message.messageId,
+                            content = content,
+                            userId = user.userId, // SDK UUID của người gửi
+                            senderName = displayName,
+                            timestamp = timestamp,
+                            isSent = false,
+                            isBroadcast = isBroadcast2,
+                            targetUserId = recipientId2 // Sử dụng recipientId làm targetUserId
+                        )
+                        
+                        messages.add(chatMessage)
+                        updateMessagesList()
+                        parsed = true
+                    } catch (e2: Exception) {
+                        android.util.Log.w("ChatFragment", "Không thể parse JSON sau khi trim: ${e2.message}")
+                    }
+                }
+                
+                // Thử 2: Nếu vẫn chưa parse được, kiểm tra xem có phải là JSON string trong string không
+                if (!parsed && message.content.contains("\\\"")) {
+                    try {
+                        // Unescape JSON string
+                        val unescaped = message.content
+                            .replace("\\\"", "\"")
+                            .replace("\\\\", "\\")
+                            .trim()
+                        
+                        if (unescaped.startsWith("{") && unescaped.endsWith("}")) {
+                            val messageData = JSONObject(unescaped)
+                            val content = when {
+                                messageData.has("text") -> messageData.getString("text")
+                                messageData.has("content") -> messageData.getString("content")
+                                else -> unescaped
+                            }
+                            val senderName = messageData.optString("senderName", "")
+                            
+                            if (senderName.isNotBlank()) {
+                                userDisplayNames[user.userId] = senderName
+                            }
+                            
+                            val displayName = senderName.ifBlank { 
+                                user.getDisplayNameOrShortId()
+                            }
+                            
+                            // Luôn dùng user.userId (SDK UUID) làm định danh người gửi
+                            // ⭐ Kiểm tra recipientId để xác định broadcast
+                            val recipientId3 = messageData.optString("recipientId", null)
+                            val isBroadcast3 = recipientId3.isNullOrBlank()
+                            
+                            val chatMessage = ChatMessage(
+                                id = message.messageId,
+                                content = content,
+                                userId = user.userId, // SDK UUID của người gửi
+                                senderName = displayName,
+                                timestamp = System.currentTimeMillis(),
+                                isSent = false,
+                                isBroadcast = isBroadcast3,
+                                targetUserId = recipientId3 // Sử dụng recipientId làm targetUserId
+                            )
+                            
+                            messages.add(chatMessage)
+                            updateMessagesList()
+                            parsed = true
+                        }
+                    } catch (e2: Exception) {
+                        android.util.Log.w("ChatFragment", "Không thể parse JSON sau khi unescape: ${e2.message}")
+                    }
+                }
+                
+                // Nếu vẫn không parse được, treat as plain text
+                if (!parsed) {
+                    val displayName = user.getDisplayNameOrShortId()
+                    val chatMessage = ChatMessage(
+                        id = message.messageId,
+                        content = message.content,
+                        userId = user.userId,
+                        senderName = displayName,
+                        timestamp = System.currentTimeMillis(),
+                        isSent = false,
+                        isBroadcast = false,
+                        targetUserId = null // Plain text không có targetUserId
+                    )
+                    messages.add(chatMessage)
+                    updateMessagesList()
+                }
+            } catch (e: Exception) {
+                // Nếu có lỗi khác, log và xử lý như plain text
+                android.util.Log.e("ChatFragment", "Lỗi khi xử lý tin nhắn: ${e.message}", e)
+                val displayName = user.getDisplayNameOrShortId()
+                val chatMessage = ChatMessage(
+                    id = message.messageId,
+                    content = message.content,
+                    userId = user.userId,
+                    senderName = displayName,
+                    timestamp = System.currentTimeMillis(),
+                    isSent = false,
+                    isBroadcast = false,
+                    targetUserId = null // Exception case không có targetUserId
+                )
+                messages.add(chatMessage)
+                updateMessagesList()
+            }
+        }
+    }
+    
+    override fun onMessageSent(messageId: String) {
+        android.util.Log.d("ChatFragment", "Tin nhắn đã gửi thành công: $messageId")
+        // Message already added optimistically
+    }
+    
+    override fun onMessageFailed(messageId: String, error: String) {
+        android.util.Log.e("ChatFragment", "Gửi tin nhắn thất bại: $messageId, lỗi: $error")
+        activity?.runOnUiThread {
+            if (!isAdded || _binding == null) return@runOnUiThread
+            // Remove failed message from list
+            messages.removeAll { it.id == messageId }
+            updateMessagesList()
+            Toast.makeText(
+                requireContext(),
+                "Gửi tin nhắn thất bại: $error",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
+        bridgefyManager.removeListener(this)
+        
+        // Remove keyboard listener to avoid memory leak
+        keyboardLayoutListener?.let {
+            if (_binding != null) {
+                try {
+                    binding.root.viewTreeObserver.removeOnGlobalLayoutListener(it)
+                } catch (e: Exception) {
+                    // ViewTreeObserver may have been destroyed, ignore
+                }
+            }
+        }
+        keyboardLayoutListener = null
+        
+        // Remove window insets listeners
+        inputInsetsListener?.let {
+            try {
+                if (_binding != null) {
+                    ViewCompat.setOnApplyWindowInsetsListener(binding.layoutMessageInput, null)
+                }
+            } catch (e: Exception) {
+                // Ignore if view is already destroyed
+            }
+        }
+        inputInsetsListener = null
+        
+        recyclerInsetsListener?.let {
+            try {
+                if (_binding != null) {
+                    ViewCompat.setOnApplyWindowInsetsListener(binding.recyclerViewMessages, null)
+                }
+            } catch (e: Exception) {
+                // Ignore if view is already destroyed
+            }
+        }
+        recyclerInsetsListener = null
+        
         _binding = null
+    }
+    
+    /**
+     * Set the selected user ID for private chat
+     * This method can be called from outside to start a private chat with a specific user
+     */
+    fun setSelectedUser(userId: String, displayName: String? = null) {
+        setPrivateChatMode(userId, displayName)
+    }
+    
+    /**
+     * Switch to broadcast mode
+     * This method can be called from outside
+     */
+    fun switchToBroadcast() {
+        setBroadcastMode()
+    }
+    
+    // Adapter for messages list
+    private class MessagesAdapter : RecyclerView.Adapter<MessagesAdapter.MessageViewHolder>() {
+        private val messages = mutableListOf<ChatMessage>()
+        
+        fun submitList(newMessages: List<ChatMessage>) {
+            messages.clear()
+            messages.addAll(newMessages)
+            notifyDataSetChanged()
+        }
+        
+        override fun getItemViewType(position: Int): Int {
+            return if (messages[position].isSent) 0 else 1
+        }
+        
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
+            val layoutId = if (viewType == 0) R.layout.item_message else R.layout.item_message_received
+            val view = LayoutInflater.from(parent.context)
+                .inflate(layoutId, parent, false)
+            return MessageViewHolder(view)
+        }
+        
+        override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
+            val message = messages[position]
+            holder.bind(message)
+        }
+        
+        override fun getItemCount() = messages.size
+        
+        class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+            private val textMessageContent = itemView.findViewById<TextView>(R.id.textMessageContent)
+            private val textMessageTime = itemView.findViewById<TextView>(R.id.textMessageTime)
+            private val textSenderName = itemView.findViewById<TextView>(R.id.textSenderName)
+            
+            fun bind(message: ChatMessage) {
+                textMessageContent?.text = message.content
+                textMessageTime?.text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                    .format(java.util.Date(message.timestamp))
+                
+                // Show sender info for received messages
+                if (!message.isSent && textSenderName != null) {
+                    textSenderName.visibility = View.VISIBLE
+                    // Hiển thị tên thân thiện thay vì userId
+                    val displayName = message.senderName
+                    textSenderName.text = if (message.isBroadcast) "📢 $displayName" else displayName
+                } else {
+                    textSenderName?.visibility = View.GONE
+                }
+            }
+        }
     }
 }

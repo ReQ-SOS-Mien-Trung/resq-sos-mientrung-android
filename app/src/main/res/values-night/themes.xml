@@ -1,7 +1,25 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+    <!-- Base application theme - Dark Mode (Default for battery saving) -->
     <style name="Base.Theme.ResqSOSMienTrungAndroid" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+        <!-- Dark theme colors optimized for battery saving -->
+        <item name="colorPrimary">@color/orange_primary</item>
+        <item name="colorPrimaryDark">@color/orange_primary_dark</item>
+        <item name="colorAccent">@color/orange_accent</item>
+        <item name="android:windowBackground">@color/orange_background</item>
+        <item name="android:statusBarColor">@color/orange_background</item>
+        <item name="android:navigationBarColor">@color/nav_background</item>
+        <!-- Force dark mode for battery optimization -->
+        <item name="android:forceDarkAllowed">true</item>
+    </style>
+    
+    <!-- Bottom Sheet Dialog Theme -->
+    <style name="BottomSheetDialogTheme" parent="Theme.Design.Light.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/BottomSheetStyle</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowSoftInputMode">adjustResize</item>
+    </style>
+    
+    <style name="BottomSheetStyle" parent="Widget.Design.BottomSheet.Modal">
+        <item name="android:background">@android:color/transparent</item>
     </style>
 </resources>
