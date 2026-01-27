@@ -1,9 +1,11 @@
 package com.resq.resq_sos_mientrung_android
 
+import android.Manifest
 import android.animation.ArgbEvaluator
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
@@ -15,13 +17,16 @@ import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import com.resq.resq_sos_mientrung_android.databinding.ActivityMainBinding
 import com.resq.resq_sos_mientrung_android.bridgefy.BridgefyManager
+import com.resq.resq_sos_mientrung_android.bridgefy.BridgefySDKWrapper
 import com.resq.resq_sos_mientrung_android.dialogs.MoreMenuBottomSheet
 import com.resq.resq_sos_mientrung_android.fragments.AIChatbotFragment
 import com.resq.resq_sos_mientrung_android.fragments.ChatFragment
@@ -55,6 +60,25 @@ class MainActivity : AppCompatActivity() {
         3 to "fragment_chat",
         4 to "fragment_map"
     )
+    
+    // Permission launcher cho Location và Bluetooth permissions
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.all { it.value }
+        if (allGranted) {
+            // Tất cả permissions đã được grant, retry start Bridgefy SDK
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                BridgefySDKWrapper.startBridgefySDK()
+            }, 500)
+        } else {
+            Toast.makeText(
+                this,
+                "Cần cấp quyền Location và Bluetooth để sử dụng tính năng mesh network",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Đọc preference dark mode trước khi tạo view
@@ -78,6 +102,9 @@ class MainActivity : AppCompatActivity() {
 
         // Inflate navigation bar
         navBarView = layoutInflater.inflate(R.layout.bottom_navigation_bar, binding.navBarContainer, true)
+        
+        // ⭐ CRITICAL: Request permissions trước khi initialize Bridgefy SDK
+        requestRequiredPermissions()
         
         // Initialize Bridgefy SDK
         BridgefyManager.getInstance(this).initialize(this)
@@ -220,6 +247,36 @@ class MainActivity : AppCompatActivity() {
             }
         })
         bottomSheet.show(supportFragmentManager, MoreMenuBottomSheet.TAG)
+    }
+    
+    /**
+     * Request required permissions cho Bridgefy SDK
+     * ⚠️ CRITICAL: Location permission là BẮT BUỘC cho BLE scanning
+     */
+    private fun requestRequiredPermissions() {
+        val permissionsToRequest = mutableListOf<String>()
+        
+        // Location permission (BẮT BUỘC cho BLE scanning từ Android 6.0+)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        
+        // Bluetooth permissions (Android 12+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.BLUETOOTH_ADVERTISE)
+            }
+        }
+        
+        if (permissionsToRequest.isNotEmpty()) {
+            permissionLauncher.launch(permissionsToRequest.toTypedArray())
+        }
     }
     
     private fun showAboutDialog() {

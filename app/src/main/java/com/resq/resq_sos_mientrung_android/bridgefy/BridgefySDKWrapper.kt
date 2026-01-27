@@ -30,21 +30,28 @@ object BridgefySDKWrapper {
     
     /**
      * Kiểm tra permissions cần thiết cho Bluetooth trên Android 12+
+     * ⚠️ CRITICAL: Bridgefy SDK cần Location permission để scan BLE devices (Android requirement từ API 23+)
      */
     private fun hasBluetoothPermissions(): Boolean {
         val context = appContext ?: return false
+        
+        // ⭐ CRITICAL: Location permission là BẮT BUỘC cho BLE scanning trên Android 6.0+
+        val hasLocation = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val hasScan = ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
             val hasConnect = ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
             val hasAdvertise = ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED
             
-            Log.d(TAG, "Permission check - SCAN: $hasScan, CONNECT: $hasConnect, ADVERTISE: $hasAdvertise")
+            Log.d(TAG, "Permission check - LOCATION: $hasLocation, SCAN: $hasScan, CONNECT: $hasConnect, ADVERTISE: $hasAdvertise")
             
-            hasScan && hasConnect && hasAdvertise
+            // Tất cả permissions đều cần thiết
+            hasLocation && hasScan && hasConnect && hasAdvertise
         } else {
-            // Android 11 trở xuống chỉ cần BLUETOOTH và BLUETOOTH_ADMIN trong manifest
-            true
+            // Android 11 trở xuống: cần Location permission (từ API 23+) + Bluetooth permissions trong manifest
+            Log.d(TAG, "Permission check (Android < 12) - LOCATION: $hasLocation")
+            hasLocation
         }
     }
     
@@ -143,8 +150,24 @@ object BridgefySDKWrapper {
         
         // Kiểm tra permissions trước khi start
         if (!hasBluetoothPermissions()) {
-            Log.w(TAG, "⚠️ Cannot start SDK - Bluetooth permissions not granted yet")
-            Log.w(TAG, "SDK will be started when permissions are granted")
+            val context = appContext ?: return false
+            val hasLocation = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            
+            Log.w(TAG, "⚠️ Cannot start SDK - Missing required permissions")
+            if (!hasLocation) {
+                Log.w(TAG, "❌ Missing LOCATION permission - Bridgefy SDK REQUIRES this for BLE scanning")
+                Log.w(TAG, "💡 Please request ACCESS_FINE_LOCATION or ACCESS_COARSE_LOCATION permission")
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val hasScan = ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
+                val hasConnect = ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+                val hasAdvertise = ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED
+                if (!hasScan) Log.w(TAG, "❌ Missing BLUETOOTH_SCAN permission")
+                if (!hasConnect) Log.w(TAG, "❌ Missing BLUETOOTH_CONNECT permission")
+                if (!hasAdvertise) Log.w(TAG, "❌ Missing BLUETOOTH_ADVERTISE permission")
+            }
+            Log.w(TAG, "SDK will be started when all permissions are granted")
             return false
         }
         
@@ -170,11 +193,15 @@ object BridgefySDKWrapper {
             }
             
             if (startMethod != null) {
-                // Tìm PropagationProfile - thử tìm các subclass ở cùng package
+                // Tìm PropagationProfile - ưu tiên LongReach cho vùng lũ cách biệt
+                // LongReach giúp tăng khoảng cách quét từ ~100m lên 150-300m (tùy phần cứng)
+                // Điều này quan trọng khi người cần cứu ở xa và không có thiết bị trung gian
                 val propagationProfileClassNames = listOf(
+                    // ⭐ ƯU TIÊN LongReach cho SOS trong vùng lũ cách biệt
+                    "me.bridgefy.commons.propagation.PropagationProfile\$LongReach",
+                    // Fallback về Standard nếu LongReach không khả dụng
                     "me.bridgefy.commons.propagation.PropagationProfile\$Standard",
                     "me.bridgefy.commons.propagation.PropagationProfile\$HighDensityEnvironment",
-                    "me.bridgefy.commons.propagation.PropagationProfile\$LongReach",
                     "me.bridgefy.commons.propagation.PropagationProfile\$ShortReach",
                     "me.bridgefy.commons.PropagationProfile\$Standard",
                     "me.bridgefy.PropagationProfile\$Standard"
@@ -194,7 +221,13 @@ object BridgefySDKWrapper {
                             instanceField.isAccessible = true
                             propagationProfile = instanceField.get(null)
                             if (propagationProfile != null) {
-                                Log.d(TAG, "✅ Found PropagationProfile INSTANCE: ${subclass.simpleName}")
+                                val profileName = subclass.simpleName
+                                Log.d(TAG, "✅ Found PropagationProfile INSTANCE: $profileName")
+                                if (profileName.contains("LongReach", ignoreCase = true)) {
+                                    Log.i(TAG, "📡 Using LongReach profile - Extended range mode enabled (~150-300m)")
+                                } else {
+                                    Log.d(TAG, "📡 Using $profileName profile - Standard range mode (~100m)")
+                                }
                                 break
                             }
                         } catch (e: NoSuchFieldException) {
@@ -203,7 +236,13 @@ object BridgefySDKWrapper {
                                 val constructor = subclass.getDeclaredConstructor()
                                 constructor.isAccessible = true
                                 propagationProfile = constructor.newInstance()
-                                Log.d(TAG, "✅ Created PropagationProfile: ${subclass.simpleName}")
+                                val profileName = subclass.simpleName
+                                Log.d(TAG, "✅ Created PropagationProfile: $profileName")
+                                if (profileName.contains("LongReach", ignoreCase = true)) {
+                                    Log.i(TAG, "📡 Using LongReach profile - Extended range mode enabled (~150-300m)")
+                                } else {
+                                    Log.d(TAG, "📡 Using $profileName profile - Standard range mode (~100m)")
+                                }
                                 break
                             } catch (e2: Exception) {
                                 Log.d(TAG, "Cannot create ${subclass.simpleName}: ${e2.message}")
